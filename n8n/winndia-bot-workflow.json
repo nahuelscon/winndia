@@ -145,8 +145,8 @@
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -171,7 +171,7 @@
       "typeVersion": 4.2,
       "position": [1720, 100],
       "credentials": {
-        "httpHeaderAuth": {
+        "anthropicApi": {
           "id": "anthropic-api-creds",
           "name": "Anthropic API"
         }
