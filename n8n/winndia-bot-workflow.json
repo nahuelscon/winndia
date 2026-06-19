@@ -581,11 +581,11 @@
           "conditions": [
             {
               "id": "cond-is-cheque",
-              "leftValue": "={{ $('Preparar fila').first().json.chequesRowValues }}",
+              "leftValue": "={{ !!$('Preparar fila').first().json.chequesRowValues }}",
               "rightValue": "",
               "operator": {
-                "type": "object",
-                "operation": "notEmpty",
+                "type": "boolean",
+                "operation": "true",
                 "singleValue": true
               }
             }
