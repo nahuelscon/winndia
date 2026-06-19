@@ -356,7 +356,7 @@
                 "conditions": [
                   {
                     "id": "r-was-ask",
-                    "leftValue": "={{ $json.accion }}",
+                    "leftValue": "={{ $('Construir Pendiente').first().json.accion }}",
                     "rightValue": "preguntar",
                     "operator": {
                       "type": "string",
@@ -379,7 +379,7 @@
                 "conditions": [
                   {
                     "id": "r-was-ask-pay",
-                    "leftValue": "={{ $json.accion }}",
+                    "leftValue": "={{ $('Construir Pendiente').first().json.accion }}",
                     "rightValue": "preguntar_pago",
                     "operator": {
                       "type": "string",
@@ -448,7 +448,7 @@
           "conditions": [
             {
               "id": "cond-need-mark",
-              "leftValue": "={{ $json.pendienteRowIndex }}",
+              "leftValue": "={{ $('Preparar fila').first().json.pendienteRowIndex || 0 }}",
               "rightValue": 0,
               "operator": {
                 "type": "number",
@@ -469,7 +469,7 @@
     {
       "parameters": {
         "method": "PUT",
-        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/Pendientes!N{{ $json.pendienteRowIndex }}:N{{ $json.pendienteRowIndex }}?valueInputOption=USER_ENTERED",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $('Preparar fila').first().json.config.spreadsheetId }}/values/Pendientes!N{{ $('Preparar fila').first().json.pendienteRowIndex }}:N{{ $('Preparar fila').first().json.pendienteRowIndex }}?valueInputOption=USER_ENTERED",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleApi",
         "sendBody": true,
@@ -504,12 +504,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $json.config.evolutionApiUrl }}/message/sendText/{{ $json.config.evolutionInstance }}",
+        "url": "={{ $('Preparar fila').first().json.config.evolutionApiUrl }}/message/sendText/{{ $('Preparar fila').first().json.config.evolutionInstance }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $json.groupJid }}\",\n  \"text\": \"REMITO ACTUALIZADO\\nCliente: {{ $json.sheetName }}\\nCuenta: {{ $json.cuenta }}\\nComprobante: {{ $json.extracted.numero_comprobante || 'PAGO' }}\\nMonto: ${{ $json.extracted.monto }}\"\n}",
+        "jsonBody": "={\n  \"number\": \"{{ $('Preparar fila').first().json.groupJid }}\",\n  \"text\": \"REMITO ACTUALIZADO\\nCliente: {{ $('Preparar fila').first().json.sheetName }}\\nCuenta: {{ $('Preparar fila').first().json.cuenta }}\\nComprobante: {{ $('Preparar fila').first().json.extracted.numero_comprobante || 'PAGO' }}\\nMonto: ${{ $('Preparar fila').first().json.extracted.monto }}\"\n}",
         "options": {}
       },
       "id": "wa-confirm",
@@ -539,12 +539,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $json.config.evolutionApiUrl }}/message/sendText/{{ $json.config.evolutionInstance }}",
+        "url": "={{ $('Construir Pendiente').first().json.config.evolutionApiUrl }}/message/sendText/{{ $('Construir Pendiente').first().json.config.evolutionInstance }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $json.groupJid }}\",\n  \"text\": \"DOCUMENTO PENDIENTE DE CONFIRMACIÓN\\nMotivo: {{ $json.extracted.razon_confianza || $json.extracted.faltante || 'datos incompletos' }}\\n\\nDatos detectados:\\nTipo: {{ $json.extracted.tipo }}\\nCliente: {{ $json.extracted.cliente_detectado || 'no identificado' }}\\nMonto: ${{ $json.extracted.monto || 'no detectado' }}\\nComprobante: {{ $json.extracted.numero_comprobante || 'no detectado' }}\\n\\nResponder confirmando o corrigiendo (cliente, cuenta 1/2, monto, número).\"\n}",
+        "jsonBody": "={\n  \"number\": \"{{ $('Construir Pendiente').first().json.groupJid }}\",\n  \"text\": \"DOCUMENTO PENDIENTE DE CONFIRMACIÓN\\nMotivo: {{ $('Construir Pendiente').first().json.extracted.razon_confianza || $('Construir Pendiente').first().json.extracted.faltante || 'datos incompletos' }}\\n\\nDatos detectados:\\nTipo: {{ $('Construir Pendiente').first().json.extracted.tipo }}\\nCliente: {{ $('Construir Pendiente').first().json.extracted.cliente_detectado || 'no identificado' }}\\nMonto: ${{ $('Construir Pendiente').first().json.extracted.monto || 'no detectado' }}\\nComprobante: {{ $('Construir Pendiente').first().json.extracted.numero_comprobante || 'no detectado' }}\\n\\nResponder confirmando o corrigiendo (cliente, cuenta 1/2, monto, número).\"\n}",
         "options": {}
       },
       "id": "wa-ask",
@@ -574,7 +574,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/Pendientes!A:P",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $('Construir Pendiente').first().json.config.spreadsheetId }}/values/Pendientes!A:P",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleApi",
         "options": {}
