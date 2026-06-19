@@ -161,7 +161,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 1024,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"image\",\n          \"source\": {\n            \"type\": \"base64\",\n            \"media_type\": \"image/jpeg\",\n            \"data\": \"{{ $json.base64 }}\"\n          }\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \"Sos un asistente que lee documentos comerciales argentinos enviados por WhatsApp por un equipo de ventas. Pueden ser:\\n\\n1. REMITOS OFICIALES (suelen decir 'REMITO', tienen membrete tipo NALESPE S.A., codigo R, CUIT, etc) -> tipo: 'remito_cta1'\\n2. REMITOS NO OFICIALES / PRESUPUESTOS (suelen decir 'PRESUPUESTO', con 'X - DOCUMENTO NO VALIDO COMO FACTURA') -> tipo: 'remito_cta2'\\n3. COMPROBANTES DE TRANSFERENCIA bancaria (Galicia, Santander, BBVA, Mercado Pago) -> tipo: 'pago_transferencia'\\n4. FOTOS DE CHEQUES o ECHEQS (chequera bancaria, BANCO PATAGONIA, BANCO NACION, etc) -> tipo: 'pago_cheque'\\n5. NOTAS DE CREDITO -> tipo: 'nota_credito'\\n6. Otra cosa irrelevante -> tipo: 'desconocido'\\n\\nExtrae los datos en JSON ESTRICTO con esta forma exacta:\\n{\\n  \\\"tipo\\\": \\\"remito_cta1|remito_cta2|pago_transferencia|pago_cheque|nota_credito|desconocido\\\",\\n  \\\"cliente_detectado\\\": \\\"nombre exacto del Señor/es del documento o null\\\",\\n  \\\"fecha\\\": \\\"DD/MM o null\\\",\\n  \\\"numero_comprobante\\\": \\\"nro de remito / cheque / operacion / o 'pago' si es transferencia/efectivo, o null\\\",\\n  \\\"nota\\\": \\\"texto corto: para cheques el nombre del firmante; para otros aclaraciones; null si no aplica\\\",\\n  \\\"monto\\\": numero_sin_simbolos_ni_puntos_ni_comas o null,\\n  \\\"items\\\": [{\\\"cantidad\\\": numero, \\\"descripcion\\\": \\\"texto\\\"}],\\n  \\\"banco\\\": \\\"para cheques/transferencias o null\\\",\\n  \\\"confianza\\\": \\\"alta|media|baja\\\",\\n  \\\"faltante\\\": \\\"texto describiendo que dato falta o esta ambiguo, o null si todo esta claro\\\"\\n}\\n\\nReglas:\\n- El monto siempre como número (ej: 2883200, no '2.883.200').\\n- Si el remito tiene 'RECIBI CONFORME $X' usá ese valor como monto.\\n- Si ves un total tachado o reescrito, usá el último valor.\\n- Si no estás seguro de algo, ponelo en null y describilo en 'faltante'.\\n- RESPONDÉ SOLO CON EL JSON, sin texto extra ni markdown.\"\n        }\n      ]\n    }\n  ]\n}",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 1024,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"image\",\n          \"source\": {\n            \"type\": \"base64\",\n            \"media_type\": \"image/jpeg\",\n            \"data\": \"{{ $json.base64 }}\"\n          }\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \"Sos un asistente que lee documentos comerciales argentinos enviados por WhatsApp al grupo REMITOS del equipo de ventas de Winndia (zapatería).\\n\\nTIPOS DE DOCUMENTO POSIBLES:\\n1. REMITO OFICIAL — tiene membrete 'NALESPE S.A.' o 'NALESPE', papelería preimpresa. Va a CTA 1 → tipo 'remito_cta1'.\\n2. REMITO NO OFICIAL / PRESUPUESTO — dice 'PRESUPUESTO' o 'X DOCUMENTO NO VÁLIDO COMO FACTURA'. Va a CTA 2 → tipo 'remito_cta2'.\\n3. NOTA DE CRÉDITO (NDC) — es un remito (oficial o presupuesto) que dice 'NDC' o 'NOTA DE CRÉDITO'.\\n   - En formato oficial NALESPE → 'ndc_cta1'\\n   - En formato presupuesto → 'ndc_cta2'\\n   - El monto va al HABER.\\n4. COMPROBANTE DE TRANSFERENCIA → 'pago_transferencia'.\\n5. CHEQUE FÍSICO (papel de chequera) → 'pago_cheque'.\\n6. ECHEQ (captura digital) → 'pago_echeq'.\\n7. CUALQUIER OTRA COSA (meme, screenshot no comercial) → 'irrelevante'.\\n\\nREGLAS CRÍTICAS:\\n- Los remitos en este negocio son SIEMPRE manuscritos. Letra manuscrita clara es totalmente legible y vale como alta confianza.\\n- Para TRANSFERENCIAS/CHEQUES/ECHEQS: NO intentes detectar el cliente desde la imagen. El cliente viene en un mensaje aparte del grupo. Solo extraés monto, banco, cuenta destino (transferencias) o dueño/firmante (cheques).\\n- En presupuestos (cta 2) el número de comprobante suele estar ABAJO; en oficiales NALESPE arriba (formato 'R 0001-XXXXXXXX').\\n\\nCRITERIOS DE CONFIANZA:\\n\\nALTA — bot carga directo:\\n- Foto nítida, encuadre completo.\\n- Cliente claramente identificable (manuscrito CLARO o impreso, sin ambigüedad).\\n- Monto legible sin tachones múltiples (manuscrito claro vale).\\n- Número de comprobante visible y completo.\\n- Tipo de documento inequívoco.\\n- Para cheques/echeqs: dueño + número + monto + banco + fecha cobro todos legibles.\\n- Para transferencias: monto + cuenta destino legibles.\\n\\nMEDIA — bot pregunta antes de cargar:\\n- Algún dato menor ambiguo (ej: fecha no visible).\\n- Cliente identificable pero podría confundirse con otro similar.\\n- Total con tachones pero legible.\\n- Foto algo torcida pero todo crítico legible.\\n\\nBAJA — bot pregunta o no carga:\\n- Dato crítico ausente o ilegible (cliente, monto principal, número).\\n- Foto borrosa, cortada, muy oscura, o con sello tapando info clave.\\n- Letra manuscrita ininteligible.\\n\\nJSON DE RESPUESTA (estricto, sin markdown):\\n{\\n  \\\"tipo\\\": \\\"remito_cta1|remito_cta2|ndc_cta1|ndc_cta2|pago_transferencia|pago_cheque|pago_echeq|irrelevante\\\",\\n  \\\"cliente_detectado\\\": \\\"string o null (solo para remitos/NDC; null para pagos)\\\",\\n  \\\"fecha\\\": \\\"DD/MM o null\\\",\\n  \\\"numero_comprobante\\\": \\\"string o null\\\",\\n  \\\"monto\\\": numero_sin_simbolos,\\n  \\\"nota_corta\\\": \\\"max 30 chars o vacío\\\",\\n  \\\"banco\\\": \\\"para cheques/echeqs/transferencias o null\\\",\\n  \\\"dueno_cheque\\\": \\\"firmante visible en CH/ECHEQ o null\\\",\\n  \\\"fecha_cobro\\\": \\\"DD/MM solo CH/ECHEQ o null\\\",\\n  \\\"cuenta_destino\\\": \\\"NALESPE u otra (solo transferencias) o null\\\",\\n  \\\"es_multipago\\\": false,\\n  \\\"pagos_multiples\\\": [],\\n  \\\"confianza\\\": \\\"alta|media|baja\\\",\\n  \\\"razon_confianza\\\": \\\"frase corta explicando\\\",\\n  \\\"faltante\\\": \\\"qué falta o ambiguo, o null\\\"\\n}\\n\\nREGLAS PARA EL MONTO:\\n- Siempre número plano: 2883200, no '$2.883.200' ni '2,883,200'.\\n- Si hay total tachado y reescrito al lado, usá el VÁLIDO (el final).\\n- Si en transferencias hay 'Total' o 'Importe', usalo.\\n\\nPAGOS MÚLTIPLES (una transferencia que paga varias facturas):\\n- es_multipago: true.\\n- pagos_multiples: [{\\\"monto\\\": X}, ...] una entrada por pago.\\n\\nIRRELEVANTE:\\n- Si NO es ninguno de los tipos comerciales, respondé SOLAMENTE: {\\\"tipo\\\":\\\"irrelevante\\\",\\\"confianza\\\":\\\"alta\\\"}.\\n\\nRESPONDÉ SOLO CON JSON, sin markdown, sin texto extra.\"\n        }\n      ]\n    }\n  ]\n}",
         "options": {}
       },
       "id": "claude-vision",
@@ -178,7 +178,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parseamos la respuesta de Claude y matcheamos cliente con la hoja\nconst claudeResp = $input.first().json;\nconst rawText = claudeResp.content?.[0]?.text || '{}';\n\nlet extracted;\ntry {\n  // A veces Claude envuelve en ```json ... ```, lo limpiamos\n  const cleaned = rawText.replace(/^```json\\s*/i, '').replace(/```\\s*$/, '').trim();\n  extracted = JSON.parse(cleaned);\n} catch (e) {\n  extracted = { tipo: 'desconocido', faltante: 'No se pudo parsear: ' + rawText.slice(0, 100), confianza: 'baja' };\n}\n\n// Traemos la config desde el primer item de la ejecución\nconst configItem = $('Config').first().json;\nconst aliases = configItem.config.clientAliases;\nconst original = configItem.original;\n\n// Match de cliente (lowercase, sin tildes, comparación simple)\nfunction normalize(s) {\n  return (s || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();\n}\n\nlet sheetName = null;\nconst detected = normalize(extracted.cliente_detectado);\nif (detected) {\n  for (const [alias, sheet] of Object.entries(aliases)) {\n    if (detected.includes(normalize(alias)) || normalize(alias).includes(detected)) {\n      sheetName = sheet;\n      break;\n    }\n  }\n}\n\n// Determinar cuenta (1 o 2) en base al tipo\nconst esCheque = extracted.tipo === 'pago_cheque';\nconst esCta1 = extracted.tipo === 'remito_cta1';\nconst esCta2 = extracted.tipo === 'remito_cta2';\nconst esPago = extracted.tipo === 'pago_transferencia' || extracted.tipo === 'pago_cheque';\nconst esNotaCredito = extracted.tipo === 'nota_credito';\n\n// Para pagos, sin contexto adicional asumimos cta1 (ajustable). El usuario podrá corregir respondiendo.\nlet cuenta = null;\nif (esCta1) cuenta = 1;\nelse if (esCta2) cuenta = 2;\nelse if (esPago || esNotaCredito) cuenta = 1; // default, se puede mejorar\n\nconst tieneTodoLoNecesario = sheetName && cuenta && extracted.monto && extracted.confianza === 'alta';\n\nreturn [{\n  json: {\n    extracted,\n    sheetName,\n    cuenta,\n    esCheque,\n    esPago,\n    esCta1,\n    esCta2,\n    tieneTodoLoNecesario,\n    config: configItem.config,\n    senderJid: original.data.key.participant || original.data.key.remoteJid,\n    messageId: original.data.key.id,\n    groupJid: configItem.config.groupJid\n  }\n}];"
+        "jsCode": "// Parseamos respuesta de Claude, matcheamos cliente y decidimos acción\nconst claudeResp = $input.first().json;\nconst rawText = claudeResp.content?.[0]?.text || '{}';\n\nlet extracted;\ntry {\n  const cleaned = rawText.replace(/^```json\\s*/i, '').replace(/```\\s*$/, '').trim();\n  extracted = JSON.parse(cleaned);\n} catch (e) {\n  extracted = { tipo: 'irrelevante', faltante: 'No se pudo parsear: ' + rawText.slice(0, 100), confianza: 'baja' };\n}\n\nconst configItem = $('Config').first().json;\nconst aliases = configItem.config.clientAliases;\nconst original = configItem.original;\n\n// Si es irrelevante, no respondemos nada al grupo (acción: ignorar)\nif (extracted.tipo === 'irrelevante') {\n  return [{\n    json: {\n      extracted,\n      accion: 'ignorar',\n      config: configItem.config,\n      groupJid: configItem.config.groupJid\n    }\n  }];\n}\n\n// Categorías por tipo\nconst esRemito = extracted.tipo === 'remito_cta1' || extracted.tipo === 'remito_cta2';\nconst esNDC = extracted.tipo === 'ndc_cta1' || extracted.tipo === 'ndc_cta2';\nconst esTransferencia = extracted.tipo === 'pago_transferencia';\nconst esCheque = extracted.tipo === 'pago_cheque';\nconst esEcheq = extracted.tipo === 'pago_echeq';\nconst esPago = esTransferencia || esCheque || esEcheq;\n\n// Cuenta según tipo:\n// - remito/NDC oficial → cta 1\n// - remito/NDC presupuesto → cta 2\n// - echeq → cta 1 (echeqs son siempre cta 1)\n// - cheque físico → cta 2 (cheques físicos siempre cta 2)\n// - transferencia → indefinida hasta que llegue el contexto (Fase 2)\nlet cuenta = null;\nif (extracted.tipo === 'remito_cta1' || extracted.tipo === 'ndc_cta1' || esEcheq) cuenta = 1;\nelse if (extracted.tipo === 'remito_cta2' || extracted.tipo === 'ndc_cta2' || esCheque) cuenta = 2;\n// pago_transferencia: cuenta se determina al recibir el mensaje de contexto del cliente\n\n// Match de cliente — SOLO para remitos y NDC. Pagos vienen sin cliente desde la imagen.\nfunction normalize(s) {\n  return (s || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();\n}\n\nlet sheetName = null;\nif ((esRemito || esNDC) && extracted.cliente_detectado) {\n  const detected = normalize(extracted.cliente_detectado);\n  for (const [alias, sheet] of Object.entries(aliases)) {\n    if (detected.includes(normalize(alias)) || normalize(alias).includes(detected)) {\n      sheetName = sheet;\n      break;\n    }\n  }\n}\n\n// Decisión de acción\n// Fase 1: pagos sin cliente del grupo aún no son procesables, los marcamos como 'preguntar' para que el equipo sepa\n// Fase 2 los va a manejar bien con la pestaña Pendientes\nlet accion;\nif (esPago) {\n  accion = 'preguntar_pago'; // bot pregunta cliente/cta porque pago vino sin contexto suficiente\n} else if ((esRemito || esNDC) && sheetName && cuenta && extracted.monto && extracted.confianza === 'alta') {\n  accion = 'cargar';\n} else if (esRemito || esNDC) {\n  accion = 'preguntar';\n} else {\n  accion = 'ignorar';\n}\n\nreturn [{\n  json: {\n    extracted,\n    sheetName,\n    cuenta,\n    esRemito,\n    esNDC,\n    esTransferencia,\n    esCheque,\n    esEcheq,\n    esPago,\n    accion,\n    config: configItem.config,\n    senderJid: original.data.key.participant || original.data.key.remoteJid,\n    messageId: original.data.key.id,\n    groupJid: configItem.config.groupJid\n  }\n}];"
       },
       "id": "parse-match",
       "name": "Parsear y matchear cliente",
@@ -200,12 +200,11 @@
                 "conditions": [
                   {
                     "id": "r-ok",
-                    "leftValue": "={{ $json.tieneTodoLoNecesario }}",
-                    "rightValue": "",
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "cargar",
                     "operator": {
-                      "type": "boolean",
-                      "operation": "true",
-                      "singleValue": true
+                      "type": "string",
+                      "operation": "equals"
                     }
                   }
                 ],
@@ -224,12 +223,11 @@
                 "conditions": [
                   {
                     "id": "r-ask",
-                    "leftValue": "={{ $json.tieneTodoLoNecesario }}",
-                    "rightValue": "",
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "preguntar",
                     "operator": {
-                      "type": "boolean",
-                      "operation": "false",
-                      "singleValue": true
+                      "type": "string",
+                      "operation": "equals"
                     }
                   }
                 ],
@@ -237,10 +235,35 @@
               },
               "renameOutput": true,
               "outputKey": "Preguntar"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "r-ask-pay",
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "preguntar_pago",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Preguntar pago"
             }
           ]
         },
-        "options": {}
+        "options": {
+          "fallbackOutput": "none"
+        }
       },
       "id": "switch-action",
       "name": "¿Cargar o preguntar?",
@@ -250,7 +273,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Calcula en qué columnas escribir según cta1 o cta2\nconst d = $input.first().json;\nconst e = d.extracted;\n\n// cta 2 -> A:F (FECHA, COMPROBANTE, NOTA, DEBE, HABER, SALDO)\n// cta 1 -> H:M (mismo orden, sin tocar SALDO)\nconst rangeStart = d.cuenta === 1 ? 'H' : 'A';\nconst rangeEnd = d.cuenta === 1 ? 'L' : 'E'; // hasta HABER, no escribimos SALDO\n\n// DEBE vs HABER\nlet debe = '';\nlet haber = '';\nif (d.esPago || e.tipo === 'pago_transferencia' || e.tipo === 'pago_cheque') {\n  haber = e.monto;\n} else if (e.tipo === 'nota_credito') {\n  haber = e.monto; // las NC son a favor del cliente, descuentan deuda\n} else {\n  debe = e.monto;\n}\n\nconst comprobante = e.numero_comprobante || 'pago';\nconst nota = e.nota || '';\n\nreturn [{\n  json: {\n    ...d,\n    sheetRange: `${d.sheetName}!${rangeStart}:${rangeEnd}`,\n    rowValues: [e.fecha || '', comprobante, nota, debe, haber]\n  }\n}];"
+        "jsCode": "// Arma la fila a escribir según tipo + cuenta\nconst d = $input.first().json;\nconst e = d.extracted;\n\n// cta 2 → A:E (FECHA, COMPROBANTE, NOTA, DEBE, HABER) — SALDO en F no la tocamos\n// cta 1 → H:L (mismo orden, M es SALDO y no la tocamos)\nconst rangeStart = d.cuenta === 1 ? 'H' : 'A';\nconst rangeEnd = d.cuenta === 1 ? 'L' : 'E';\n\n// DEBE vs HABER\n// - Remito normal → DEBE\n// - NDC → HABER (es nota de crédito, descuenta deuda)\n// - Pago (cheque/echeq/transferencia) → HABER\nlet debe = '';\nlet haber = '';\nif (d.esNDC || d.esPago) {\n  haber = e.monto;\n} else {\n  debe = e.monto;\n}\n\n// Comprobante\n// - Transferencia → 'PAGO' literal\n// - Cheque/Echeq/Remito/NDC → número del documento\nlet comprobante;\nif (d.esTransferencia) {\n  comprobante = 'PAGO';\n} else {\n  comprobante = e.numero_comprobante || '';\n}\n\n// Nota\n// - NDC → siempre arrancar con 'NDC'\n// - Otros → nota_corta del modelo (puede estar vacía)\nlet nota = e.nota_corta || '';\nif (d.esNDC) {\n  nota = nota ? `NDC ${nota}` : 'NDC';\n}\n\nreturn [{\n  json: {\n    ...d,\n    sheetRange: `${d.sheetName}!${rangeStart}:${rangeEnd}`,\n    rowValues: [e.fecha || '', comprobante, nota, debe, haber]\n  }\n}];"
       },
       "id": "prep-row",
       "name": "Preparar fila",
@@ -291,7 +314,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $json.groupJid }}\",\n  \"text\": \"✅ Cargado en *{{ $json.sheetName }}* cta {{ $json.cuenta }} — {{ $json.extracted.numero_comprobante }} — ${{ $json.extracted.monto }}\"\n}",
+        "jsonBody": "={\n  \"number\": \"{{ $json.groupJid }}\",\n  \"text\": \"REMITO ACTUALIZADO\\nCliente: {{ $json.sheetName }}\\nCuenta: {{ $json.cuenta }}\\nComprobante: {{ $json.extracted.numero_comprobante || 'PAGO' }}\\nMonto: ${{ $json.extracted.monto }}\"\n}",
         "options": {}
       },
       "id": "wa-confirm",
@@ -314,7 +337,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $json.groupJid }}\",\n  \"text\": \"🤔 No me quedó claro: {{ $json.extracted.faltante || 'falta info' }}.\\n\\nDetecté: tipo={{ $json.extracted.tipo }}, cliente={{ $json.extracted.cliente_detectado || '?' }}, monto=${{ $json.extracted.monto || '?' }}.\\n\\nRespondan a este mensaje aclarando (cliente / cta 1 o 2 / monto correcto).\"\n}",
+        "jsonBody": "={\n  \"number\": \"{{ $json.groupJid }}\",\n  \"text\": \"DOCUMENTO PENDIENTE DE CONFIRMACIÓN\\nMotivo: {{ $json.extracted.razon_confianza || $json.extracted.faltante || 'datos incompletos' }}\\n\\nDatos detectados:\\nTipo: {{ $json.extracted.tipo }}\\nCliente: {{ $json.extracted.cliente_detectado || 'no identificado' }}\\nMonto: ${{ $json.extracted.monto || 'no detectado' }}\\nComprobante: {{ $json.extracted.numero_comprobante || 'no detectado' }}\\n\\nResponder confirmando o corrigiendo (cliente, cuenta 1/2, monto, número).\"\n}",
         "options": {}
       },
       "id": "wa-ask",
@@ -331,8 +354,31 @@
     },
     {
       "parameters": {
-        "content": "### ⚠️ TODO post-MVP\n\n- **Hoja 'cheques'**: agregar branch que también escriba fila en la hoja 'cheques' con FECHA/CLIENTE/DUEÑO/NRO/MONTO/FECHA COBRO/TIPO/COBRADO/RECHAZO cuando `esCheque == true`.\n- **Respuestas del grupo**: agregar branch para procesar texto (no imagen) y matchear con preguntas pendientes del bot.\n- **Memoria de preguntas**: usar Redis o Sheets 'pendientes' para correlacionar la respuesta del usuario con la imagen original.\n- **Fuzzy match mejor**: usar `fuse.js` o similar en lugar de includes simple.\n- **Detección cta1/cta2 en pagos**: hoy default a cta 1; mejorar mirando histórico del cliente o pidiendo confirmación.\n- **Evitar duplicados**: chequear si el numero_comprobante ya existe en la hoja antes de escribir.",
-        "height": 320,
+        "method": "POST",
+        "url": "={{ $json.config.evolutionApiUrl }}/message/sendText/{{ $json.config.evolutionInstance }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.groupJid }}\",\n  \"text\": \"PAGO PENDIENTE DE ASIGNACIÓN\\nTipo: {{ $json.extracted.tipo }}\\nMonto: ${{ $json.extracted.monto || 'no detectado' }}\\n{{ $json.extracted.banco ? 'Banco: ' + $json.extracted.banco + '\\\\n' : '' }}{{ $json.extracted.cuenta_destino ? 'Cuenta destino: ' + $json.extracted.cuenta_destino + '\\\\n' : '' }}{{ $json.extracted.dueno_cheque ? 'Firmante: ' + $json.extracted.dueno_cheque + '\\\\n' : '' }}\\nIndicar cliente y cuenta para procesar.\"\n}",
+        "options": {}
+      },
+      "id": "wa-ask-pay",
+      "name": "WhatsApp preguntar pago",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2380, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "evolution-api-creds",
+          "name": "Evolution API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "### Fase 1 — completada\n\n- Detección NALESPE = cta 1 / otro = cta 2 (remitos y NDC).\n- Echeq → cta 1, cheque físico → cta 2.\n- NDC se carga al HABER con nota 'NDC'.\n- Transferencias → comprobante 'PAGO', cliente esperado por mensaje aparte.\n- Confianza ALTA estricta (manuscrito claro vale).\n- Mensajes formales, sin emojis.\n- Foto irrelevante → no responder.\n\n### TODO Fase 2\n\n- Hoja 'Pendientes' en el Sheet: id, timestamp, tipo, monto, cliente, status.\n- Branch para mensajes de texto del grupo → busca pendiente y aplica.\n- Claude interpreta respuestas: 'ok', 'cargá igual', 'es Cinna cta 1', etc.\n- Timeout 15 min con aviso 'no cargado'.\n- Captions de pagos: junta foto + texto siguiente.\n\n### TODO Fase 3\n\n- Hoja 'cheques' con FECHA/CLIENTE/DUEÑO/NRO/MONTO/FECHA COBRO/TIPO/COBRADO.\n- Alias persistente aprendido.\n- Auto-crear hoja de cliente nuevo desde template.\n- Detección duplicados por nro de comprobante.\n- Multi-pago: una transferencia → varias filas.\n\n### TODO Fase 4\n\n- @bot cuánto debe X → leer Sheet y responder.",
+        "height": 540,
         "width": 480,
         "color": 3
       },
@@ -440,6 +486,13 @@
         [
           {
             "node": "WhatsApp preguntar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WhatsApp preguntar pago",
             "type": "main",
             "index": 0
           }
