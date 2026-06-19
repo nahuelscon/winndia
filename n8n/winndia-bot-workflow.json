@@ -260,27 +260,19 @@
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "value": "={{ $json.config.spreadsheetId }}",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "={{ $json.sheetName }}",
-          "mode": "name"
-        },
-        "options": {
-          "useAppend": true,
-          "valueInputMode": "USER_ENTERED"
-        }
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/{{ encodeURIComponent($json.sheetRange) }}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"values\": [{{ JSON.stringify($json.rowValues) }}]\n}",
+        "options": {}
       },
       "id": "sheets-write",
       "name": "Google Sheets - Escribir fila",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [2600, 0],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -289,7 +281,7 @@
         }
       },
       "notesInFlow": true,
-      "notes": "Append en la hoja del cliente. En la práctica conviene cambiar a 'Append or Update' usando una col vacía como key, pero append simple funciona para MVP."
+      "notes": "HTTP Request directo a la Sheets API para manejar rangos explícitos (H:L cta 1 / A:E cta 2) sin el lío del auto-map."
     },
     {
       "parameters": {
