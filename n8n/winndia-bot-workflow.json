@@ -324,7 +324,7 @@
         "method": "POST",
         "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/Pendientes!A:P:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS",
         "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "nodeCredentialType": "googleApi",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"values\": [{{ JSON.stringify($json.pendienteRow) }}]\n}",
@@ -336,9 +336,9 @@
       "typeVersion": 4.2,
       "position": [2600, 250],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "google-sheets-creds",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "winndia-sa-creds",
+          "name": "SHEET WINNDIA (SA)"
         }
       }
     },
@@ -419,7 +419,7 @@
         "method": "POST",
         "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/{{ encodeURIComponent($json.sheetRange) }}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS",
         "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "nodeCredentialType": "googleApi",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"values\": [{{ JSON.stringify($json.rowValues) }}]\n}",
@@ -431,9 +431,9 @@
       "typeVersion": 4.2,
       "position": [2600, 0],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "google-sheets-creds",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "winndia-sa-creds",
+          "name": "SHEET WINNDIA (SA)"
         }
       }
     },
@@ -471,7 +471,7 @@
         "method": "PUT",
         "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/Pendientes!N{{ $json.pendienteRowIndex }}:N{{ $json.pendienteRowIndex }}?valueInputOption=USER_ENTERED",
         "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "nodeCredentialType": "googleApi",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"values\": [[\"cargado\"]]\n}",
@@ -483,9 +483,9 @@
       "typeVersion": 4.2,
       "position": [3040, -100],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "google-sheets-creds",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "winndia-sa-creds",
+          "name": "SHEET WINNDIA (SA)"
         }
       }
     },
@@ -576,7 +576,7 @@
         "method": "GET",
         "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/Pendientes!A:P",
         "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "nodeCredentialType": "googleApi",
         "options": {}
       },
       "id": "read-pendientes-check",
@@ -585,9 +585,9 @@
       "typeVersion": 4.2,
       "position": [3260, 400],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "google-sheets-creds",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "winndia-sa-creds",
+          "name": "SHEET WINNDIA (SA)"
         }
       }
     },
@@ -659,7 +659,7 @@
         "method": "GET",
         "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/Pendientes!A:P",
         "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "nodeCredentialType": "googleApi",
         "options": {}
       },
       "id": "read-pendientes-text",
@@ -668,9 +668,9 @@
       "typeVersion": 4.2,
       "position": [1500, 700],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "google-sheets-creds",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "winndia-sa-creds",
+          "name": "SHEET WINNDIA (SA)"
         }
       }
     },
