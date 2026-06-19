@@ -3,8 +3,8 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Winndia WhatsApp Bot - MVP v1\n\n**Flujo:**\n1. Evolution API manda webhook con cada mensaje del grupo.\n2. Filtramos solo el grupo REMITOS.\n3. Si trae imagen: la bajamos en base64, la mandamos a Claude para que extraiga datos del remito/pago/cheque.\n4. Identificamos el cliente y la cuenta (1 / 2).\n5. Escribimos en la hoja correspondiente del Google Sheet.\n6. Si es cheque, también escribimos en la hoja 'cheques'.\n7. Respondemos en el grupo confirmando la carga (o preguntando si faltó info).\n\n**Antes de activar:**\n- Reemplazá los valores en el nodo 'Config' con tus IDs reales.\n- Configurá credenciales: Anthropic (Header Auth), Google Sheets OAuth2, Evolution API (Header Auth con apikey).\n- En Evolution API, configurá el webhook apuntando a la URL del nodo Webhook.",
-        "height": 380,
+        "content": "## Winndia WhatsApp Bot — Fase 2\n\n**Flujo de imagen:**\n1. Evolution API → webhook.\n2. Filtro grupo REMITOS.\n3. Bajar imagen → Claude la analiza.\n4. Decide: cargar / preguntar / preguntar pago / ignorar.\n5. Si carga → escribe en Sheet del cliente + 'REMITO ACTUALIZADO'.\n6. Si pregunta → escribe en hoja Pendientes + manda pregunta al grupo.\n\n**Flujo de texto (NUEVO Fase 2):**\n1. El grupo manda texto.\n2. Bot lee hoja Pendientes y agarra EL ÚLTIMO con status 'pendiente'.\n3. Claude interpreta: 'ok', 'es Cinna cta 2', 'no, descartá', etc.\n4. Si dice 'cargar' → reutiliza Preparar fila + Sheets, marca Pendiente como 'cargado'.\n5. Si no aplica → ignora.\n\n**Setup obligatorio:**\n- Crear pestaña 'Pendientes' en el Sheet con headers en fila 1:\n  id | timestamp | tipo | cliente_detectado | sheet_name | cuenta | monto | comprobante | fecha | nota | banco | dueno_cheque | fecha_cobro | status | razon | chat_jid",
+        "height": 480,
         "width": 480,
         "color": 5
       },
@@ -12,7 +12,7 @@
       "name": "Intro",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-200, -200]
+      "position": [-200, -300]
     },
     {
       "parameters": {
@@ -41,7 +41,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Config global del bot\nconst config = {\n  // JID del grupo REMITOS\n  groupJid: '120363039852043503@g.us',\n\n  // ID del Google Sheet (de la URL: docs.google.com/spreadsheets/d/<ESTE_ID>/edit)\n  spreadsheetId: '1dLd0fgqVrDLliq4sCdVxMtXdavWuREkEeZcODDk-t8Y',\n\n  // Evolution API (instancia self-hosted en EasyPanel)\n  evolutionApiUrl: 'https://evolutioapi-evolution-api.mknton.easypanel.host',\n  evolutionInstance: 'winndia-bot',\n\n  // Mapa de alias de cliente -> nombre exacto de la hoja en el Sheet.\n  // Agregá aliases para cada cliente con todas las formas en que puede aparecer en remitos/comprobantes.\n  clientAliases: {\n    'ramiro rendon': 'ROCAS RAMIRO',\n    'ramiro rendón': 'ROCAS RAMIRO',\n    'rodriguez rendon ramiro': 'ROCAS RAMIRO',\n    'cinna': 'CINNA',\n    'veggia': 'VEGGIA',\n    'fatima kuns': 'FATIMA KUNS',\n    'bucco': 'BUCCO',\n    'indara estefi': 'INDARA ESTEFI',\n    'bloomchic': 'BLOOMCHIC',\n    'tosco': 'TOSCO',\n    'you are by alexia': 'YOU ARE BY ALEXIA',\n    'niusta': 'NIUSTA',\n    'principito': 'PRINCIPITO',\n    'margarita': 'MARGARITA',\n    'mili': 'MILI CHASCOMUS',\n    'milagros': 'MILI CHASCOMUS',\n    'milagros gonzalez': 'MILI CHASCOMUS',\n    'mili chascomus': 'MILI CHASCOMUS',\n    'zapin': 'zapin',\n    'de pueblo': 'de pueblo',\n    'daielo': 'daielo'\n  }\n};\n\n// El webhook de n8n envuelve el payload en .body — desempaquetamos acá\n// para que los nodos siguientes accedan a campos como original.data.key.remoteJid directamente.\nconst webhookInput = $input.first().json;\nconst original = webhookInput.body || webhookInput;\n\nreturn [{ json: { config, original } }];"
+        "jsCode": "// Config global del bot\nconst config = {\n  groupJid: '120363039852043503@g.us',\n  spreadsheetId: '1dLd0fgqVrDLliq4sCdVxMtXdavWuREkEeZcODDk-t8Y',\n  evolutionApiUrl: 'https://evolutioapi-evolution-api.mknton.easypanel.host',\n  evolutionInstance: 'winndia-bot',\n  clientAliases: {\n    'ramiro rendon': 'ROCAS RAMIRO',\n    'ramiro rendón': 'ROCAS RAMIRO',\n    'rodriguez rendon ramiro': 'ROCAS RAMIRO',\n    'cinna': 'CINNA',\n    'veggia': 'VEGGIA',\n    'fatima kuns': 'FATIMA KUNS',\n    'bucco': 'BUCCO',\n    'indara estefi': 'INDARA ESTEFI',\n    'bloomchic': 'BLOOMCHIC',\n    'tosco': 'TOSCO',\n    'you are by alexia': 'YOU ARE BY ALEXIA',\n    'niusta': 'NIUSTA',\n    'principito': 'PRINCIPITO',\n    'margarita': 'MARGARITA',\n    'mili': 'MILI CHASCOMUS',\n    'milagros': 'MILI CHASCOMUS',\n    'milagros gonzalez': 'MILI CHASCOMUS',\n    'mili chascomus': 'MILI CHASCOMUS',\n    'zapin': 'zapin',\n    'de pueblo': 'de pueblo',\n    'daielo': 'daielo'\n  }\n};\n\nconst webhookInput = $input.first().json;\nconst original = webhookInput.body || webhookInput;\n\nreturn [{ json: { config, original } }];"
       },
       "id": "config-1",
       "name": "Config",
@@ -115,7 +115,45 @@
       "name": "IF tiene imagen",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1280, 200]
+      "position": [1280, 100]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-text-1",
+              "leftValue": "={{ $json.original.data.messageType }}",
+              "rightValue": "conversation",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "cond-text-2",
+              "leftValue": "={{ $json.original.data.messageType }}",
+              "rightValue": "extendedTextMessage",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "if-text",
+      "name": "IF tiene texto",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1280, 700]
     },
     {
       "parameters": {
@@ -178,7 +216,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parseamos respuesta de Claude, matcheamos cliente y decidimos acción\nconst claudeResp = $input.first().json;\nconst rawText = claudeResp.content?.[0]?.text || '{}';\n\nlet extracted;\ntry {\n  const cleaned = rawText.replace(/^```json\\s*/i, '').replace(/```\\s*$/, '').trim();\n  extracted = JSON.parse(cleaned);\n} catch (e) {\n  extracted = { tipo: 'irrelevante', faltante: 'No se pudo parsear: ' + rawText.slice(0, 100), confianza: 'baja' };\n}\n\nconst configItem = $('Config').first().json;\nconst aliases = configItem.config.clientAliases;\nconst original = configItem.original;\n\n// Si es irrelevante, no respondemos nada al grupo (acción: ignorar)\nif (extracted.tipo === 'irrelevante') {\n  return [{\n    json: {\n      extracted,\n      accion: 'ignorar',\n      config: configItem.config,\n      groupJid: configItem.config.groupJid\n    }\n  }];\n}\n\n// Categorías por tipo\nconst esRemito = extracted.tipo === 'remito_cta1' || extracted.tipo === 'remito_cta2';\nconst esNDC = extracted.tipo === 'ndc_cta1' || extracted.tipo === 'ndc_cta2';\nconst esTransferencia = extracted.tipo === 'pago_transferencia';\nconst esCheque = extracted.tipo === 'pago_cheque';\nconst esEcheq = extracted.tipo === 'pago_echeq';\nconst esPago = esTransferencia || esCheque || esEcheq;\n\n// Cuenta según tipo:\n// - remito/NDC oficial → cta 1\n// - remito/NDC presupuesto → cta 2\n// - echeq → cta 1 (echeqs son siempre cta 1)\n// - cheque físico → cta 2 (cheques físicos siempre cta 2)\n// - transferencia → indefinida hasta que llegue el contexto (Fase 2)\nlet cuenta = null;\nif (extracted.tipo === 'remito_cta1' || extracted.tipo === 'ndc_cta1' || esEcheq) cuenta = 1;\nelse if (extracted.tipo === 'remito_cta2' || extracted.tipo === 'ndc_cta2' || esCheque) cuenta = 2;\n// pago_transferencia: cuenta se determina al recibir el mensaje de contexto del cliente\n\n// Match de cliente — SOLO para remitos y NDC. Pagos vienen sin cliente desde la imagen.\nfunction normalize(s) {\n  return (s || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();\n}\n\nlet sheetName = null;\nif ((esRemito || esNDC) && extracted.cliente_detectado) {\n  const detected = normalize(extracted.cliente_detectado);\n  for (const [alias, sheet] of Object.entries(aliases)) {\n    if (detected.includes(normalize(alias)) || normalize(alias).includes(detected)) {\n      sheetName = sheet;\n      break;\n    }\n  }\n}\n\n// Decisión de acción\n// Fase 1: pagos sin cliente del grupo aún no son procesables, los marcamos como 'preguntar' para que el equipo sepa\n// Fase 2 los va a manejar bien con la pestaña Pendientes\nlet accion;\nif (esPago) {\n  accion = 'preguntar_pago'; // bot pregunta cliente/cta porque pago vino sin contexto suficiente\n} else if ((esRemito || esNDC) && sheetName && cuenta && extracted.monto && extracted.confianza === 'alta') {\n  accion = 'cargar';\n} else if (esRemito || esNDC) {\n  accion = 'preguntar';\n} else {\n  accion = 'ignorar';\n}\n\nreturn [{\n  json: {\n    extracted,\n    sheetName,\n    cuenta,\n    esRemito,\n    esNDC,\n    esTransferencia,\n    esCheque,\n    esEcheq,\n    esPago,\n    accion,\n    config: configItem.config,\n    senderJid: original.data.key.participant || original.data.key.remoteJid,\n    messageId: original.data.key.id,\n    groupJid: configItem.config.groupJid\n  }\n}];"
+        "jsCode": "// Parseamos respuesta de Claude, matcheamos cliente y decidimos acción\nconst claudeResp = $input.first().json;\nconst rawText = claudeResp.content?.[0]?.text || '{}';\n\nlet extracted;\ntry {\n  const cleaned = rawText.replace(/^```json\\s*/i, '').replace(/```\\s*$/, '').trim();\n  extracted = JSON.parse(cleaned);\n} catch (e) {\n  extracted = { tipo: 'irrelevante', faltante: 'No se pudo parsear: ' + rawText.slice(0, 100), confianza: 'baja' };\n}\n\nconst configItem = $('Config').first().json;\nconst aliases = configItem.config.clientAliases;\nconst original = configItem.original;\n\nif (extracted.tipo === 'irrelevante') {\n  return [{\n    json: {\n      extracted,\n      accion: 'ignorar',\n      config: configItem.config,\n      groupJid: configItem.config.groupJid\n    }\n  }];\n}\n\nconst esRemito = extracted.tipo === 'remito_cta1' || extracted.tipo === 'remito_cta2';\nconst esNDC = extracted.tipo === 'ndc_cta1' || extracted.tipo === 'ndc_cta2';\nconst esTransferencia = extracted.tipo === 'pago_transferencia';\nconst esCheque = extracted.tipo === 'pago_cheque';\nconst esEcheq = extracted.tipo === 'pago_echeq';\nconst esPago = esTransferencia || esCheque || esEcheq;\n\nlet cuenta = null;\nif (extracted.tipo === 'remito_cta1' || extracted.tipo === 'ndc_cta1' || esEcheq) cuenta = 1;\nelse if (extracted.tipo === 'remito_cta2' || extracted.tipo === 'ndc_cta2' || esCheque) cuenta = 2;\n\nfunction normalize(s) {\n  return (s || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();\n}\n\nlet sheetName = null;\nif ((esRemito || esNDC) && extracted.cliente_detectado) {\n  const detected = normalize(extracted.cliente_detectado);\n  for (const [alias, sheet] of Object.entries(aliases)) {\n    if (detected.includes(normalize(alias)) || normalize(alias).includes(detected)) {\n      sheetName = sheet;\n      break;\n    }\n  }\n}\n\nlet accion;\nif (esPago) {\n  accion = 'preguntar_pago';\n} else if ((esRemito || esNDC) && sheetName && cuenta && extracted.monto && extracted.confianza === 'alta') {\n  accion = 'cargar';\n} else if (esRemito || esNDC) {\n  accion = 'preguntar';\n} else {\n  accion = 'ignorar';\n}\n\nreturn [{\n  json: {\n    extracted,\n    sheetName,\n    cuenta,\n    esRemito,\n    esNDC,\n    esTransferencia,\n    esCheque,\n    esEcheq,\n    esPago,\n    accion,\n    config: configItem.config,\n    senderJid: original.data.key.participant || original.data.key.remoteJid,\n    messageId: original.data.key.id,\n    groupJid: configItem.config.groupJid\n  }\n}];"
       },
       "id": "parse-match",
       "name": "Parsear y matchear cliente",
@@ -273,7 +311,102 @@
     },
     {
       "parameters": {
-        "jsCode": "// Arma la fila a escribir según tipo + cuenta\nconst d = $input.first().json;\nconst e = d.extracted;\n\n// cta 2 → A:E (FECHA, COMPROBANTE, NOTA, DEBE, HABER) — SALDO en F no la tocamos\n// cta 1 → H:L (mismo orden, M es SALDO y no la tocamos)\nconst rangeStart = d.cuenta === 1 ? 'H' : 'A';\nconst rangeEnd = d.cuenta === 1 ? 'L' : 'E';\n\n// DEBE vs HABER\n// - Remito normal → DEBE\n// - NDC → HABER (es nota de crédito, descuenta deuda)\n// - Pago (cheque/echeq/transferencia) → HABER\nlet debe = '';\nlet haber = '';\nif (d.esNDC || d.esPago) {\n  haber = e.monto;\n} else {\n  debe = e.monto;\n}\n\n// Comprobante\n// - Transferencia → 'PAGO' literal\n// - Cheque/Echeq/Remito/NDC → número del documento\nlet comprobante;\nif (d.esTransferencia) {\n  comprobante = 'PAGO';\n} else {\n  comprobante = e.numero_comprobante || '';\n}\n\n// Nota\n// - NDC → siempre arrancar con 'NDC'\n// - Otros → nota_corta del modelo (puede estar vacía)\nlet nota = e.nota_corta || '';\nif (d.esNDC) {\n  nota = nota ? `NDC ${nota}` : 'NDC';\n}\n\nreturn [{\n  json: {\n    ...d,\n    sheetRange: `${d.sheetName}!${rangeStart}:${rangeEnd}`,\n    rowValues: [e.fecha || '', comprobante, nota, debe, haber]\n  }\n}];"
+        "jsCode": "// Construye la fila para escribir en la hoja Pendientes\nconst d = $input.first().json;\nconst e = d.extracted || {};\nconst ts = new Date().toISOString();\n\nconst pendienteRow = [\n  d.messageId || '',\n  ts,\n  e.tipo || '',\n  e.cliente_detectado || '',\n  d.sheetName || '',\n  d.cuenta != null ? String(d.cuenta) : '',\n  e.monto != null ? String(e.monto) : '',\n  e.numero_comprobante || '',\n  e.fecha || '',\n  e.nota_corta || '',\n  e.banco || '',\n  e.dueno_cheque || '',\n  e.fecha_cobro || '',\n  'pendiente',\n  e.razon_confianza || e.faltante || '',\n  d.groupJid || ''\n];\n\nreturn [{ json: { ...d, pendienteRow } }];"
+      },
+      "id": "build-pendiente",
+      "name": "Construir Pendiente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2380, 250]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/Pendientes!A:P:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"values\": [{{ JSON.stringify($json.pendienteRow) }}]\n}",
+        "options": {}
+      },
+      "id": "write-pendiente",
+      "name": "Escribir Pendiente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2600, 250],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "r-was-ask",
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "preguntar",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Esperar 10s"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "r-was-ask-pay",
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "preguntar_pago",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Esperar 45s"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "id": "switch-wait",
+      "name": "Switch ruta de espera",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [2820, 250]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Arma la fila a escribir según tipo + cuenta\nconst d = $input.first().json;\nconst e = d.extracted;\n\nconst rangeStart = d.cuenta === 1 ? 'H' : 'A';\nconst rangeEnd = d.cuenta === 1 ? 'L' : 'E';\n\nlet debe = '';\nlet haber = '';\nif (d.esNDC || d.esPago) {\n  haber = e.monto;\n} else {\n  debe = e.monto;\n}\n\nlet comprobante;\nif (d.esTransferencia) {\n  comprobante = 'PAGO';\n} else {\n  comprobante = e.numero_comprobante || '';\n}\n\nlet nota = e.nota_corta || '';\nif (d.esNDC) {\n  nota = nota ? `NDC ${nota}` : 'NDC';\n}\n\nreturn [{\n  json: {\n    ...d,\n    sheetRange: `${d.sheetName}!${rangeStart}:${rangeEnd}`,\n    rowValues: [e.fecha || '', comprobante, nota, debe, haber]\n  }\n}];"
       },
       "id": "prep-row",
       "name": "Preparar fila",
@@ -302,9 +435,71 @@
           "id": "google-sheets-creds",
           "name": "Google Sheets account"
         }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-need-mark",
+              "leftValue": "={{ $json.pendienteRowIndex }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
-      "notesInFlow": true,
-      "notes": "HTTP Request directo a la Sheets API para manejar rangos explícitos (H:L cta 1 / A:E cta 2) sin el lío del auto-map."
+      "id": "if-mark-pendiente",
+      "name": "IF marcar pendiente",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2820, 0]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/Pendientes!N{{ $json.pendienteRowIndex }}:N{{ $json.pendienteRowIndex }}?valueInputOption=USER_ENTERED",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"values\": [[\"cargado\"]]\n}",
+        "options": {}
+      },
+      "id": "mark-cargado",
+      "name": "Marcar pendiente cargado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3040, -100],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 8,
+        "unit": "seconds"
+      },
+      "id": "wait-confirm",
+      "name": "Esperar 8s (anti-ban)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [3260, 0],
+      "webhookId": "wait-confirm-wh"
     },
     {
       "parameters": {
@@ -321,13 +516,25 @@
       "name": "WhatsApp confirmar carga",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2820, 0],
+      "position": [3480, 0],
       "credentials": {
         "httpHeaderAuth": {
           "id": "evolution-api-creds",
           "name": "Evolution API"
         }
       }
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "wait-ask",
+      "name": "Esperar 10s (anti-ban)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [3040, 200],
+      "webhookId": "wait-ask-wh"
     },
     {
       "parameters": {
@@ -344,13 +551,85 @@
       "name": "WhatsApp preguntar",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2380, 200],
+      "position": [3260, 200],
       "credentials": {
         "httpHeaderAuth": {
           "id": "evolution-api-creds",
           "name": "Evolution API"
         }
       }
+    },
+    {
+      "parameters": {
+        "amount": 45,
+        "unit": "seconds"
+      },
+      "id": "wait-ask-pay",
+      "name": "Esperar 45s (espacio para contexto)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [3040, 400],
+      "webhookId": "wait-ask-pay-wh"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/Pendientes!A:P",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {}
+      },
+      "id": "read-pendientes-check",
+      "name": "Leer Pendientes (post-espera)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3260, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Después de los 45s de espera, chequeamos si el pendiente sigue 'pendiente'.\n// Si otro flow (texto) lo procesó, ya no preguntamos.\nconst resp = $input.first().json;\nconst rows = resp.values || [];\nconst dataRows = rows.slice(1);\n\n// El messageId del pago original viaja en el item — lo recuperamos.\n// Como en este punto el item viene del Read (sin nuestros datos), usamos $('Construir Pendiente') para traerlos.\nconst origData = $('Construir Pendiente').first().json;\nconst messageId = origData.messageId;\n\nlet pendienteActivo = null;\nfor (const r of dataRows) {\n  if (r[0] === messageId && r[13] === 'pendiente') {\n    pendienteActivo = true;\n    break;\n  }\n}\n\nreturn [{ json: { ...origData, sigueActivo: !!pendienteActivo } }];"
+      },
+      "id": "check-still-pending",
+      "name": "¿Sigue pendiente?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3480, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-still",
+              "leftValue": "={{ $json.sigueActivo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-still-pending",
+      "name": "IF sigue pendiente",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [3700, 400]
     },
     {
       "parameters": {
@@ -367,7 +646,7 @@
       "name": "WhatsApp preguntar pago",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2600, 400],
+      "position": [3920, 400],
       "credentials": {
         "httpHeaderAuth": {
           "id": "evolution-api-creds",
@@ -377,52 +656,151 @@
     },
     {
       "parameters": {
-        "amount": 8,
-        "unit": "seconds"
+        "method": "GET",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/Pendientes!A:P",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {}
       },
-      "id": "wait-confirm",
-      "name": "Esperar 8s (anti-ban)",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [2700, 0],
-      "webhookId": "wait-confirm-wh"
+      "id": "read-pendientes-text",
+      "name": "Leer Pendientes (texto)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1500, 700],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-creds",
+          "name": "Google Sheets account"
+        }
+      }
     },
     {
       "parameters": {
-        "amount": 10,
-        "unit": "seconds"
+        "jsCode": "// Busca el último pendiente activo del grupo\nconst resp = $input.first().json;\nconst rows = resp.values || [];\nconst dataRows = rows.slice(1);\n\nconst configItem = $('Config').first().json;\nconst config = configItem.config;\nconst original = configItem.original;\nconst groupJid = config.groupJid;\n\nlet pendiente = null;\nlet pendienteRowIndex = -1;\nlet latestTs = 0;\n\nfor (let i = 0; i < dataRows.length; i++) {\n  const r = dataRows[i];\n  if (r[13] === 'pendiente' && r[15] === groupJid) {\n    const ts = new Date(r[1]).getTime();\n    if (ts > latestTs) {\n      latestTs = ts;\n      pendiente = {\n        id: r[0],\n        timestamp: r[1],\n        tipo: r[2],\n        cliente_detectado: r[3],\n        sheet_name: r[4],\n        cuenta: r[5] ? parseInt(r[5]) : null,\n        monto: r[6] ? parseFloat(r[6]) : null,\n        comprobante: r[7],\n        fecha: r[8],\n        nota: r[9],\n        banco: r[10],\n        dueno_cheque: r[11],\n        fecha_cobro: r[12],\n        status: r[13],\n        razon: r[14],\n        chat_jid: r[15]\n      };\n      pendienteRowIndex = i + 2;\n    }\n  }\n}\n\nconst userText = original.data.message?.conversation\n  || original.data.message?.extendedTextMessage?.text\n  || '';\n\nreturn [{\n  json: {\n    pendiente,\n    pendienteRowIndex,\n    userText,\n    config,\n    groupJid,\n    senderJid: original.data.key.participant || original.data.key.remoteJid\n  }\n}];"
       },
-      "id": "wait-ask",
-      "name": "Esperar 10s (anti-ban)",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [2380, 250],
-      "webhookId": "wait-ask-wh"
+      "id": "find-pendiente",
+      "name": "Buscar pendiente activo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1720, 700]
     },
     {
       "parameters": {
-        "amount": 45,
-        "unit": "seconds"
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-has-pending",
+              "leftValue": "={{ $json.pendiente }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
-      "id": "wait-ask-pay",
-      "name": "Esperar 45s (espacio para contexto)",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [2380, 450],
-      "webhookId": "wait-ask-pay-wh"
+      "id": "if-has-pendiente",
+      "name": "IF hay pendiente",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1940, 700]
     },
     {
       "parameters": {
-        "content": "### Fase 1 — completada\n\n- Detección NALESPE = cta 1 / otro = cta 2 (remitos y NDC).\n- Echeq → cta 1, cheque físico → cta 2.\n- NDC se carga al HABER con nota 'NDC'.\n- Transferencias → comprobante 'PAGO', cliente esperado por mensaje aparte.\n- Confianza ALTA estricta (manuscrito claro vale).\n- Mensajes formales, sin emojis.\n- Foto irrelevante → no responder.\n\n### TODO Fase 2\n\n- Hoja 'Pendientes' en el Sheet: id, timestamp, tipo, monto, cliente, status.\n- Branch para mensajes de texto del grupo → busca pendiente y aplica.\n- Claude interpreta respuestas: 'ok', 'cargá igual', 'es Cinna cta 1', etc.\n- Timeout 15 min con aviso 'no cargado'.\n- Captions de pagos: junta foto + texto siguiente.\n\n### TODO Fase 3\n\n- Hoja 'cheques' con FECHA/CLIENTE/DUEÑO/NRO/MONTO/FECHA COBRO/TIPO/COBRADO.\n- Alias persistente aprendido.\n- Auto-crear hoja de cliente nuevo desde template.\n- Detección duplicados por nro de comprobante.\n- Multi-pago: una transferencia → varias filas.\n\n### TODO Fase 4\n\n- @bot cuánto debe X → leer Sheet y responder.",
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 700,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Sos un asistente que interpreta respuestas del equipo de ventas de Winndia (zapatería) sobre documentos comerciales que quedaron pendientes de confirmación.\\n\\nDOCUMENTO PENDIENTE:\\n- Tipo: {{ $json.pendiente.tipo }}\\n- Cliente detectado por el bot: {{ $json.pendiente.cliente_detectado || 'no identificado' }}\\n- Hoja del cliente (si se detectó): {{ $json.pendiente.sheet_name || 'no asignada' }}\\n- Cuenta: {{ $json.pendiente.cuenta || 'sin asignar' }}\\n- Monto: ${{ $json.pendiente.monto || 'no detectado' }}\\n- Comprobante: {{ $json.pendiente.comprobante || 'sin' }}\\n- Razón por la que quedó pendiente: {{ $json.pendiente.razon || 'sin info' }}\\n\\nUN MIEMBRO DEL GRUPO RESPONDIÓ:\\n\\\"{{ $json.userText }}\\\"\\n\\nALIASES CONOCIDOS DE CLIENTES (texto que aparece en remitos → nombre de la hoja en el Sheet):\\n{{ JSON.stringify($json.config.clientAliases) }}\\n\\nTu tarea: decidir qué hacer con la respuesta.\\n\\nDevolvé JSON estricto sin markdown:\\n{\\n  \\\"accion\\\": \\\"cargar\\\" | \\\"descartar\\\" | \\\"ignorar\\\",\\n  \\\"razon\\\": \\\"frase corta\\\",\\n  \\\"datos_finales\\\": {\\n    \\\"tipo\\\": \\\"remito_cta1|remito_cta2|ndc_cta1|ndc_cta2|pago_transferencia|pago_cheque|pago_echeq\\\",\\n    \\\"cliente_detectado\\\": \\\"texto\\\",\\n    \\\"sheet_name\\\": \\\"nombre de la hoja (debe estar en el mapa de aliases) o null\\\",\\n    \\\"cuenta\\\": 1 | 2,\\n    \\\"monto\\\": numero,\\n    \\\"numero_comprobante\\\": \\\"string o vacío\\\",\\n    \\\"fecha\\\": \\\"DD/MM o vacío\\\",\\n    \\\"nota_corta\\\": \\\"string o vacío\\\"\\n  }\\n}\\n(o datos_finales: null si la acción es 'descartar' o 'ignorar').\\n\\nREGLAS:\\n- Si responden 'ok' / 'si' / 'dale' / 'cargá' / 'confirmado' / 'está bien' / 'ya está' / 'tira' → CARGAR con los datos del pendiente sin modificar.\\n- Si responden 'no, es <cliente> cta <X>' → CARGAR con cliente y cuenta corregidos.\\n- Si solo responden 'cta 1' o 'cta 2' o 'cuenta 1' → CARGAR con esa cuenta y resto igual.\\n- Si dicen 'monto X' o 'son X' → CARGAR con ese monto.\\n- Si dicen 'descartá' / 'cancelar' / 'no carguen' / 'anular' → DESCARTAR.\\n- Si la respuesta NO se refiere al pendiente (chat normal del grupo) → IGNORAR.\\n- Para PAGOS (pago_transferencia / pago_cheque / pago_echeq) sin cliente identificado en el pendiente: si el texto dice 'es de <cliente>' o '<cliente> cta <X>', mapealo a sheet_name con el diccionario de aliases. Para pago_transferencia, decidir cuenta según contexto (NALESPE → 1, otra → 2; si no se aclara y el usuario dice 'cta 1' / 'cta 2', usar lo que dice). Para pago_cheque siempre cuenta=2, para pago_echeq siempre cuenta=1.\\n- Si dudás, IGNORAR. Mejor no cargar mal.\\n\\nSOLO JSON.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "claude-interpret",
+      "name": "Claude interpretar respuesta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2160, 700],
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-api-creds",
+          "name": "Anthropic API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parsea la respuesta de Claude y arma la estructura para Preparar fila si es cargar.\nconst claudeResp = $input.first().json;\nconst rawText = claudeResp.content?.[0]?.text || '{}';\n\nlet decision;\ntry {\n  const cleaned = rawText.replace(/^```json\\s*/i, '').replace(/```\\s*$/, '').trim();\n  decision = JSON.parse(cleaned);\n} catch (e) {\n  decision = { accion: 'ignorar', razon: 'No se pudo parsear: ' + rawText.slice(0, 100) };\n}\n\nconst input = $('Buscar pendiente activo').first().json;\nconst pendiente = input.pendiente;\nconst pendienteRowIndex = input.pendienteRowIndex;\nconst config = input.config;\nconst groupJid = input.groupJid;\n\nif (decision.accion !== 'cargar') {\n  return [{\n    json: {\n      accion: decision.accion,\n      razon: decision.razon,\n      pendienteRowIndex,\n      config,\n      groupJid\n    }\n  }];\n}\n\n// Construir la estructura que espera Preparar fila\nconst df = decision.datos_finales || {};\nconst tipo = df.tipo || pendiente.tipo;\n\nconst esRemito = tipo === 'remito_cta1' || tipo === 'remito_cta2';\nconst esNDC = tipo === 'ndc_cta1' || tipo === 'ndc_cta2';\nconst esTransferencia = tipo === 'pago_transferencia';\nconst esCheque = tipo === 'pago_cheque';\nconst esEcheq = tipo === 'pago_echeq';\nconst esPago = esTransferencia || esCheque || esEcheq;\n\nlet cuenta = df.cuenta || pendiente.cuenta;\nif (!cuenta) {\n  if (tipo === 'remito_cta1' || tipo === 'ndc_cta1' || esEcheq) cuenta = 1;\n  else if (tipo === 'remito_cta2' || tipo === 'ndc_cta2' || esCheque) cuenta = 2;\n}\n\nconst sheetName = df.sheet_name || pendiente.sheet_name;\nconst monto = df.monto != null ? df.monto : pendiente.monto;\nconst comprobante = df.numero_comprobante || pendiente.comprobante || '';\nconst fecha = df.fecha || pendiente.fecha || '';\nconst notaCorta = df.nota_corta != null ? df.nota_corta : (pendiente.nota || '');\nconst clienteDetectado = df.cliente_detectado || pendiente.cliente_detectado || '';\n\n// Si después de todo seguimos sin sheetName o sin cuenta o sin monto, ignoramos.\nif (!sheetName || !cuenta || !monto) {\n  return [{\n    json: {\n      accion: 'ignorar',\n      razon: 'Datos insuficientes tras interpretar respuesta',\n      pendienteRowIndex,\n      config,\n      groupJid\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    accion: 'cargar',\n    razon: decision.razon,\n    extracted: {\n      tipo,\n      cliente_detectado: clienteDetectado,\n      fecha,\n      numero_comprobante: comprobante,\n      nota_corta: notaCorta,\n      monto,\n      banco: pendiente.banco || '',\n      dueno_cheque: pendiente.dueno_cheque || '',\n      fecha_cobro: pendiente.fecha_cobro || ''\n    },\n    sheetName,\n    cuenta,\n    esRemito,\n    esNDC,\n    esTransferencia,\n    esCheque,\n    esEcheq,\n    esPago,\n    pendienteRowIndex,\n    config,\n    groupJid,\n    messageId: pendiente.id\n  }\n}];"
+      },
+      "id": "decide-text",
+      "name": "Decidir desde respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2380, 700]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-load",
+              "leftValue": "={{ $json.accion }}",
+              "rightValue": "cargar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-load-text",
+      "name": "IF cargar desde texto",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2600, 700]
+    },
+    {
+      "parameters": {
+        "content": "### Fase 2 — completada\n\n**Memoria con hoja Pendientes:**\n- Cada pregunta del bot escribe una fila en Pendientes (status='pendiente').\n- Cuando llega un texto, se busca el último Pendiente del grupo y se le pide a Claude que interprete la respuesta.\n- Si decide 'cargar', se carga al cliente y se marca como 'cargado'.\n- Para pagos: se espera 45s y se chequea si ya fue procesado por texto antes de preguntar.\n\n### TODO Fase 3\n- Timeout: workflow scheduled cada 5 min para marcar pendientes >15min como 'timeout'.\n- Hoja 'cheques' con FECHA/CLIENTE/DUEÑO/NRO/MONTO/FECHA COBRO/TIPO/COBRADO.\n- Auto-crear hoja de cliente nuevo desde template.\n- Aprender aliases nuevos a partir de correcciones.\n- Detección duplicados por nro de comprobante.\n- Multi-pago: una transferencia → varias filas.\n\n### TODO Fase 4\n- @bot cuánto debe X → leer Sheet y responder.\n\n### Setup obligatorio\n- En el Google Sheet, crear pestaña 'Pendientes' con esta fila 1:\n  id | timestamp | tipo | cliente_detectado | sheet_name | cuenta | monto | comprobante | fecha | nota | banco | dueno_cheque | fecha_cobro | status | razon | chat_jid",
         "height": 540,
-        "width": 480,
+        "width": 540,
         "color": 3
       },
       "id": "note-todo",
       "name": "TODO",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [2600, 400]
+      "position": [4200, 0]
     }
   ],
   "connections": {
@@ -458,6 +836,11 @@
         [
           {
             "node": "IF tiene imagen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "IF tiene texto",
             "type": "main",
             "index": 0
           }
@@ -521,6 +904,46 @@
         ],
         [
           {
+            "node": "Construir Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Construir Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir Pendiente": {
+      "main": [
+        [
+          {
+            "node": "Escribir Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escribir Pendiente": {
+      "main": [
+        [
+          {
+            "node": "Switch ruta de espera",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch ruta de espera": {
+      "main": [
+        [
+          {
             "node": "Esperar 10s (anti-ban)",
             "type": "main",
             "index": 0
@@ -529,39 +952,6 @@
         [
           {
             "node": "Esperar 45s (espacio para contexto)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Preparar fila": {
-      "main": [
-        [
-          {
-            "node": "Google Sheets - Escribir fila",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Google Sheets - Escribir fila": {
-      "main": [
-        [
-          {
-            "node": "Esperar 8s (anti-ban)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Esperar 8s (anti-ban)": {
-      "main": [
-        [
-          {
-            "node": "WhatsApp confirmar carga",
             "type": "main",
             "index": 0
           }
@@ -583,11 +973,187 @@
       "main": [
         [
           {
-            "node": "WhatsApp preguntar pago",
+            "node": "Leer Pendientes (post-espera)",
             "type": "main",
             "index": 0
           }
         ]
+      ]
+    },
+    "Leer Pendientes (post-espera)": {
+      "main": [
+        [
+          {
+            "node": "¿Sigue pendiente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Sigue pendiente?": {
+      "main": [
+        [
+          {
+            "node": "IF sigue pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF sigue pendiente": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp preguntar pago",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Preparar fila": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Escribir fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Escribir fila": {
+      "main": [
+        [
+          {
+            "node": "IF marcar pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF marcar pendiente": {
+      "main": [
+        [
+          {
+            "node": "Marcar pendiente cargado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Esperar 8s (anti-ban)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar pendiente cargado": {
+      "main": [
+        [
+          {
+            "node": "Esperar 8s (anti-ban)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar 8s (anti-ban)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp confirmar carga",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF tiene texto": {
+      "main": [
+        [
+          {
+            "node": "Leer Pendientes (texto)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Leer Pendientes (texto)": {
+      "main": [
+        [
+          {
+            "node": "Buscar pendiente activo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar pendiente activo": {
+      "main": [
+        [
+          {
+            "node": "IF hay pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF hay pendiente": {
+      "main": [
+        [
+          {
+            "node": "Claude interpretar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Claude interpretar respuesta": {
+      "main": [
+        [
+          {
+            "node": "Decidir desde respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir desde respuesta": {
+      "main": [
+        [
+          {
+            "node": "IF cargar desde texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF cargar desde texto": {
+      "main": [
+        [
+          {
+            "node": "Preparar fila",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     }
   },
