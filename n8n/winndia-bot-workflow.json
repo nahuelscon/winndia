@@ -406,7 +406,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Arma la fila a escribir según tipo + cuenta\nconst d = $input.first().json;\nconst e = d.extracted;\n\nconst rangeStart = d.cuenta === 1 ? 'H' : 'A';\nconst rangeEnd = d.cuenta === 1 ? 'L' : 'E';\n\nlet debe = '';\nlet haber = '';\nif (d.esNDC || d.esPago) {\n  haber = e.monto;\n} else {\n  debe = e.monto;\n}\n\nlet comprobante;\nif (d.esTransferencia) {\n  comprobante = 'PAGO';\n} else {\n  comprobante = e.numero_comprobante || '';\n}\n\nlet nota = e.nota_corta || '';\nif (d.esNDC) {\n  nota = nota ? `NDC ${nota}` : 'NDC';\n}\n\nreturn [{\n  json: {\n    ...d,\n    sheetRange: `${d.sheetName}!${rangeStart}:${rangeEnd}`,\n    rowValues: [e.fecha || '', comprobante, nota, debe, haber]\n  }\n}];"
+        "jsCode": "// Arma la fila a escribir según tipo + cuenta\nconst d = $input.first().json;\nconst e = d.extracted;\n\n// Usamos rango de una sola columna (H o A) para que el append de Sheets\n// detecte la última fila usando SOLO la columna de FECHA, ignorando las\n// fórmulas de SALDO en F y M que sino extienden la 'tabla' cientos de filas.\nconst firstCol = d.cuenta === 1 ? 'H' : 'A';\n\nlet debe = '';\nlet haber = '';\nif (d.esNDC || d.esPago) {\n  haber = e.monto;\n} else {\n  debe = e.monto;\n}\n\nlet comprobante;\nif (d.esTransferencia) {\n  comprobante = 'PAGO';\n} else {\n  comprobante = e.numero_comprobante || '';\n}\n\nlet nota = e.nota_corta || '';\nif (d.esNDC) {\n  nota = nota ? `NDC ${nota}` : 'NDC';\n}\n\nreturn [{\n  json: {\n    ...d,\n    sheetRange: `${d.sheetName}!${firstCol}:${firstCol}`,\n    rowValues: [e.fecha || '', comprobante, nota, debe, haber]\n  }\n}];"
       },
       "id": "prep-row",
       "name": "Preparar fila",
