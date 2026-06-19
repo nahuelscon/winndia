@@ -99,12 +99,11 @@
           "conditions": [
             {
               "id": "cond-has-image",
-              "leftValue": "={{ $json.original.data.message.imageMessage }}",
-              "rightValue": "",
+              "leftValue": "={{ $json.original.data.messageType }}",
+              "rightValue": "imageMessage",
               "operator": {
-                "type": "object",
-                "operation": "exists",
-                "singleValue": true
+                "type": "string",
+                "operation": "equals"
               }
             }
           ],
