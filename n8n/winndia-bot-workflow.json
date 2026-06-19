@@ -406,7 +406,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Arma la fila a escribir según tipo + cuenta\nconst d = $input.first().json;\nconst e = d.extracted;\n\n// Usamos rango de una sola columna (H o A) para que el append de Sheets\n// detecte la última fila usando SOLO la columna de FECHA, ignorando las\n// fórmulas de SALDO en F y M que sino extienden la 'tabla' cientos de filas.\nconst firstCol = d.cuenta === 1 ? 'H' : 'A';\n\nlet debe = '';\nlet haber = '';\nif (d.esNDC || d.esPago) {\n  haber = e.monto;\n} else {\n  debe = e.monto;\n}\n\nlet comprobante;\nif (d.esTransferencia) {\n  comprobante = 'PAGO';\n} else {\n  comprobante = e.numero_comprobante || '';\n}\n\nlet nota = e.nota_corta || '';\nif (d.esNDC) {\n  nota = nota ? `NDC ${nota}` : 'NDC';\n}\n\nreturn [{\n  json: {\n    ...d,\n    sheetRange: `${d.sheetName}!${firstCol}:${firstCol}`,\n    rowValues: [e.fecha || '', comprobante, nota, debe, haber]\n  }\n}];"
+        "jsCode": "// Arma los datos para escribir según tipo + cuenta\nconst d = $input.first().json;\nconst e = d.extracted;\n\nconst firstCol = d.cuenta === 1 ? 'H' : 'A';\nconst lastCol = d.cuenta === 1 ? 'L' : 'E';\n\nlet debe = '';\nlet haber = '';\nif (d.esNDC || d.esPago) {\n  haber = e.monto;\n} else {\n  debe = e.monto;\n}\n\nlet comprobante;\nif (d.esTransferencia) {\n  comprobante = 'PAGO';\n} else {\n  comprobante = e.numero_comprobante || '';\n}\n\nlet nota = e.nota_corta || '';\nif (d.esNDC) {\n  nota = nota ? `NDC ${nota}` : 'NDC';\n}\n\nreturn [{\n  json: {\n    ...d,\n    firstCol,\n    lastCol,\n    readRange: `${d.sheetName}!${firstCol}:${firstCol}`,\n    rowValues: [e.fecha || '', comprobante, nota, debe, haber]\n  }\n}];"
       },
       "id": "prep-row",
       "name": "Preparar fila",
@@ -416,8 +416,38 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/{{ encodeURIComponent($json.sheetRange) }}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS",
+        "method": "GET",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/{{ encodeURIComponent($json.readRange) }}?valueRenderOption=UNFORMATTED_VALUE",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "id": "read-target-col",
+      "name": "Leer columna FECHA cliente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2500, 0],
+      "credentials": {
+        "googleApi": {
+          "id": "winndia-sa-creds",
+          "name": "SHEET WINNDIA (SA)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Encuentra la última fila con valor real en la columna FECHA y devuelve\n// la fila destino (siguiente). Esto evita el problema del append de\n// Sheets que toma como 'llenas' celdas con formato o fórmulas que\n// devuelven string vacío.\nconst resp = $input.first().json;\nconst rows = resp.values || [];\n\nlet lastDataRow = 0;\nfor (let i = 0; i < rows.length; i++) {\n  const cell = rows[i] && rows[i][0];\n  if (cell !== null && cell !== undefined && String(cell).trim() !== '') {\n    lastDataRow = i + 1;\n  }\n}\n\nconst targetRow = lastDataRow + 1;\nconst prep = $('Preparar fila').first().json;\n\nreturn [{\n  json: {\n    ...prep,\n    targetRow,\n    writeRange: `${prep.sheetName}!${prep.firstCol}${targetRow}:${prep.lastCol}${targetRow}`\n  }\n}];"
+      },
+      "id": "calc-target-row",
+      "name": "Calcular fila destino",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2600, 0]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/{{ encodeURIComponent($json.writeRange) }}?valueInputOption=USER_ENTERED",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleApi",
         "sendBody": true,
@@ -429,7 +459,7 @@
       "name": "Google Sheets - Escribir fila",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2600, 0],
+      "position": [2720, 0],
       "credentials": {
         "googleApi": {
           "id": "winndia-sa-creds",
@@ -1015,6 +1045,28 @@
       ]
     },
     "Preparar fila": {
+      "main": [
+        [
+          {
+            "node": "Leer columna FECHA cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer columna FECHA cliente": {
+      "main": [
+        [
+          {
+            "node": "Calcular fila destino",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular fila destino": {
       "main": [
         [
           {
