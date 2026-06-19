@@ -41,13 +41,64 @@
     },
     {
       "parameters": {
-        "jsCode": "// Config global del bot\nconst config = {\n  groupJid: '120363039852043503@g.us',\n  spreadsheetId: '1dLd0fgqVrDLliq4sCdVxMtXdavWuREkEeZcODDk-t8Y',\n  evolutionApiUrl: 'https://evolutioapi-evolution-api.mknton.easypanel.host',\n  evolutionInstance: 'winndia-bot',\n  clientAliases: {\n    'ramiro rendon': 'ROCAS RAMIRO',\n    'ramiro rendón': 'ROCAS RAMIRO',\n    'rodriguez rendon ramiro': 'ROCAS RAMIRO',\n    'cinna': 'CINNA',\n    'veggia': 'VEGGIA',\n    'fatima kuns': 'FATIMA KUNS',\n    'bucco': 'BUCCO',\n    'indara estefi': 'INDARA ESTEFI',\n    'bloomchic': 'BLOOMCHIC',\n    'tosco': 'TOSCO',\n    'you are by alexia': 'YOU ARE BY ALEXIA',\n    'niusta': 'NIUSTA',\n    'principito': 'PRINCIPITO',\n    'margarita': 'MARGARITA',\n    'mili': 'MILI CHASCOMUS',\n    'milagros': 'MILI CHASCOMUS',\n    'milagros gonzalez': 'MILI CHASCOMUS',\n    'mili chascomus': 'MILI CHASCOMUS',\n    'zapin': 'zapin',\n    'de pueblo': 'de pueblo',\n    'daielo': 'daielo',\n    'antonietta': 'antonietta',\n    'farias': 'FARIAS',\n    'alucinna': 'ALUCINNA'\n  }\n};\n\nconst webhookInput = $input.first().json;\nconst original = webhookInput.body || webhookInput;\n\nreturn [{ json: { config, original } }];"
+        "jsCode": "// Config global del bot.\n// El alias map de acá es fallback: el flujo de Construir alias map mergea\n// las pestañas reales del Sheet + la hoja 'Aliases' al final de Config.\nconst config = {\n  groupJid: '120363039852043503@g.us',\n  spreadsheetId: '1dLd0fgqVrDLliq4sCdVxMtXdavWuREkEeZcODDk-t8Y',\n  evolutionApiUrl: 'https://evolutioapi-evolution-api.mknton.easypanel.host',\n  evolutionInstance: 'winndia-bot',\n  // Pestañas a IGNORAR cuando auto-mapeamos por nombre de pestaña\n  excludedTabs: ['NOS DEBEN', 'CHEQUES', 'Pendientes', 'REMITO BASE', 'Aliases'],\n  clientAliases: {\n    'ramiro rendon': 'ROCAS RAMIRO',\n    'ramiro rendón': 'ROCAS RAMIRO',\n    'rodriguez rendon ramiro': 'ROCAS RAMIRO',\n    'mili': 'MILI CHASCOMUS',\n    'milagros': 'MILI CHASCOMUS',\n    'milagros gonzalez': 'MILI CHASCOMUS',\n    'mili chascomus': 'MILI CHASCOMUS'\n  }\n};\n\nconst webhookInput = $input.first().json;\nconst original = webhookInput.body || webhookInput;\n\nreturn [{ json: { config, original } }];"
       },
       "id": "config-1",
       "name": "Config",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [840, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}?fields=sheets.properties.title",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "id": "list-tabs",
+      "name": "Listar pestañas del Sheet",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1060, 100],
+      "credentials": {
+        "googleApi": {
+          "id": "winndia-sa-creds",
+          "name": "SHEET WINNDIA (SA)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $('Config').first().json.config.spreadsheetId }}/values/Aliases!A:B",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "id": "read-aliases",
+      "name": "Leer hoja Aliases",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1280, 100],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "winndia-sa-creds",
+          "name": "SHEET WINNDIA (SA)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Construye el alias map final mergeando:\n// 1. clientAliases hardcodeados en Config (variantes / sinónimos)\n// 2. Cada pestaña del Sheet como self-alias (lowercase -> nombre exacto)\n// 3. Hoja 'Aliases' del Sheet (toma precedencia)\nconst cfgInput = $('Config').first().json;\nconst config = cfgInput.config;\nconst original = cfgInput.original;\n\nconst tabsResp = $('Listar pestañas del Sheet').first().json;\nconst aliasResp = $input.first().json;\n\nconst merged = { ...config.clientAliases };\n\nconst excluded = new Set(config.excludedTabs || []);\nconst tabs = (tabsResp && tabsResp.sheets) || [];\nfor (const t of tabs) {\n  const title = t.properties && t.properties.title;\n  if (!title) continue;\n  if (excluded.has(title)) continue;\n  merged[title.toLowerCase()] = title;\n}\n\nconst aliasRows = (aliasResp && Array.isArray(aliasResp.values)) ? aliasResp.values.slice(1) : [];\nfor (const row of aliasRows) {\n  if (!Array.isArray(row)) continue;\n  const alias = (row[0] || '').trim().toLowerCase();\n  const sheetName = (row[1] || '').trim();\n  if (alias && sheetName) merged[alias] = sheetName;\n}\n\nreturn [{\n  json: {\n    config: { ...config, clientAliases: merged },\n    original\n  }\n}];"
+      },
+      "id": "build-alias-map",
+      "name": "Construir alias map",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 100]
     },
     {
       "parameters": {
@@ -216,7 +267,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parseamos respuesta de Claude, matcheamos cliente y decidimos acción\nconst claudeResp = $input.first().json;\nconst rawText = claudeResp.content?.[0]?.text || '{}';\n\nlet extracted;\ntry {\n  const cleaned = rawText.replace(/^```json\\s*/i, '').replace(/```\\s*$/, '').trim();\n  extracted = JSON.parse(cleaned);\n} catch (e) {\n  extracted = { tipo: 'irrelevante', faltante: 'No se pudo parsear: ' + rawText.slice(0, 100), confianza: 'baja' };\n}\n\nconst configItem = $('Config').first().json;\nconst aliases = configItem.config.clientAliases;\nconst original = configItem.original;\n\nif (extracted.tipo === 'irrelevante') {\n  return [{\n    json: {\n      extracted,\n      accion: 'ignorar',\n      config: configItem.config,\n      groupJid: configItem.config.groupJid\n    }\n  }];\n}\n\nconst esRemito = extracted.tipo === 'remito_cta1' || extracted.tipo === 'remito_cta2';\nconst esNDC = extracted.tipo === 'ndc_cta1' || extracted.tipo === 'ndc_cta2';\nconst esTransferencia = extracted.tipo === 'pago_transferencia';\nconst esCheque = extracted.tipo === 'pago_cheque';\nconst esEcheq = extracted.tipo === 'pago_echeq';\nconst esPago = esTransferencia || esCheque || esEcheq;\n\nlet cuenta = null;\nif (extracted.tipo === 'remito_cta1' || extracted.tipo === 'ndc_cta1' || esEcheq) cuenta = 1;\nelse if (extracted.tipo === 'remito_cta2' || extracted.tipo === 'ndc_cta2' || esCheque) cuenta = 2;\n\nfunction normalize(s) {\n  return (s || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();\n}\n\nlet sheetName = null;\nif ((esRemito || esNDC) && extracted.cliente_detectado) {\n  const detected = normalize(extracted.cliente_detectado);\n  for (const [alias, sheet] of Object.entries(aliases)) {\n    if (detected.includes(normalize(alias)) || normalize(alias).includes(detected)) {\n      sheetName = sheet;\n      break;\n    }\n  }\n}\n\nlet accion;\nif (esPago) {\n  accion = 'preguntar_pago';\n} else if ((esRemito || esNDC) && sheetName && cuenta && extracted.monto && extracted.confianza === 'alta') {\n  accion = 'cargar';\n} else if (esRemito || esNDC) {\n  accion = 'preguntar';\n} else {\n  accion = 'ignorar';\n}\n\nreturn [{\n  json: {\n    extracted,\n    sheetName,\n    cuenta,\n    esRemito,\n    esNDC,\n    esTransferencia,\n    esCheque,\n    esEcheq,\n    esPago,\n    accion,\n    config: configItem.config,\n    senderJid: original.data.key.participant || original.data.key.remoteJid,\n    messageId: original.data.key.id,\n    groupJid: configItem.config.groupJid\n  }\n}];"
+        "jsCode": "// Parseamos respuesta de Claude, matcheamos cliente y decidimos acción\nconst claudeResp = $input.first().json;\nconst rawText = claudeResp.content?.[0]?.text || '{}';\n\nlet extracted;\ntry {\n  const cleaned = rawText.replace(/^```json\\s*/i, '').replace(/```\\s*$/, '').trim();\n  extracted = JSON.parse(cleaned);\n} catch (e) {\n  extracted = { tipo: 'irrelevante', faltante: 'No se pudo parsear: ' + rawText.slice(0, 100), confianza: 'baja' };\n}\n\nconst configItem = $('Construir alias map').first().json;\nconst aliases = configItem.config.clientAliases;\nconst original = configItem.original;\n\nif (extracted.tipo === 'irrelevante') {\n  return [{\n    json: {\n      extracted,\n      accion: 'ignorar',\n      config: configItem.config,\n      groupJid: configItem.config.groupJid\n    }\n  }];\n}\n\nconst esRemito = extracted.tipo === 'remito_cta1' || extracted.tipo === 'remito_cta2';\nconst esNDC = extracted.tipo === 'ndc_cta1' || extracted.tipo === 'ndc_cta2';\nconst esTransferencia = extracted.tipo === 'pago_transferencia';\nconst esCheque = extracted.tipo === 'pago_cheque';\nconst esEcheq = extracted.tipo === 'pago_echeq';\nconst esPago = esTransferencia || esCheque || esEcheq;\n\nlet cuenta = null;\nif (extracted.tipo === 'remito_cta1' || extracted.tipo === 'ndc_cta1' || esEcheq) cuenta = 1;\nelse if (extracted.tipo === 'remito_cta2' || extracted.tipo === 'ndc_cta2' || esCheque) cuenta = 2;\n\nfunction normalize(s) {\n  return (s || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();\n}\n\nlet sheetName = null;\nif ((esRemito || esNDC) && extracted.cliente_detectado) {\n  const detected = normalize(extracted.cliente_detectado);\n  for (const [alias, sheet] of Object.entries(aliases)) {\n    if (detected.includes(normalize(alias)) || normalize(alias).includes(detected)) {\n      sheetName = sheet;\n      break;\n    }\n  }\n}\n\nlet accion;\nif (esPago) {\n  accion = 'preguntar_pago';\n} else if ((esRemito || esNDC) && sheetName && cuenta && extracted.monto && extracted.confianza === 'alta') {\n  accion = 'cargar';\n} else if (esRemito || esNDC) {\n  accion = 'preguntar';\n} else {\n  accion = 'ignorar';\n}\n\nreturn [{\n  json: {\n    extracted,\n    sheetName,\n    cuenta,\n    esRemito,\n    esNDC,\n    esTransferencia,\n    esCheque,\n    esEcheq,\n    esPago,\n    accion,\n    config: configItem.config,\n    senderJid: original.data.key.participant || original.data.key.remoteJid,\n    messageId: original.data.key.id,\n    groupJid: configItem.config.groupJid\n  }\n}];"
       },
       "id": "parse-match",
       "name": "Parsear y matchear cliente",
@@ -686,7 +737,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Clasifica el texto: si es un comando 'PAGO X CLIENTE [cta N]' lo parseamos\n// directo acá y lo mandamos por el flujo de carga. Si no, va por el flujo\n// de respuesta a un Pendiente.\nconst configItem = $('Config').first().json;\nconst config = configItem.config;\nconst original = configItem.original;\nconst aliases = config.clientAliases;\n\nconst userText = original.data.message?.conversation\n  || original.data.message?.extendedTextMessage?.text\n  || '';\n\n// Sacar @mención al bot del principio si hay\nconst cleaned = userText.trim().replace(/^@\\S+\\s*/i, '').trim();\n\n// Match: PAGO <monto>[K|M] <cliente> [cta 1|2]\n// Ej: 'pago 500K farias', 'PAGO $500.000 ROCAS RAMIRO cta 1', 'pago 1.5m cinna'\nconst pagoMatch = cleaned.match(/^pago\\s+\\$?([\\d.,]+)\\s*([kKmM]?)\\s+(.+?)(?:\\s+cta\\s*([12]))?\\s*$/i);\n\nfunction normalize(s) {\n  return (s || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();\n}\n\nconst baseData = {\n  config,\n  groupJid: config.groupJid,\n  senderJid: original.data.key.participant || original.data.key.remoteJid,\n  messageId: original.data.key.id,\n  userText\n};\n\nif (!pagoMatch) {\n  return [{ json: { ...baseData, tipoMensaje: 'reply' } }];\n}\n\nconst numStr = pagoMatch[1].replace(/[.,]/g, '');\nlet monto = parseInt(numStr, 10);\nif (!monto) return [{ json: { ...baseData, tipoMensaje: 'reply' } }];\n\nconst mult = (pagoMatch[2] || '').toLowerCase();\nif (mult === 'k') monto *= 1000;\nif (mult === 'm') monto *= 1000000;\n\nconst clienteTexto = pagoMatch[3].trim();\nconst cuentaTexto = pagoMatch[4];\nconst cuenta = cuentaTexto ? parseInt(cuentaTexto, 10) : 1;\n\nlet sheetName = null;\nconst clienteNorm = normalize(clienteTexto);\nfor (const [alias, sheet] of Object.entries(aliases)) {\n  const aliasNorm = normalize(alias);\n  if (clienteNorm.includes(aliasNorm) || aliasNorm.includes(clienteNorm)) {\n    sheetName = sheet;\n    break;\n  }\n}\n\n// Quiso hacer un PAGO pero no reconocemos al cliente — avisamos en lugar de ignorar\nif (!sheetName) {\n  return [{\n    json: {\n      ...baseData,\n      tipoMensaje: 'pago_no_match',\n      clienteTexto,\n      monto\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    ...baseData,\n    tipoMensaje: 'pago_manual',\n    extracted: {\n      tipo: 'pago_efectivo',\n      monto,\n      numero_comprobante: '',\n      nota_corta: 'efectivo',\n      cliente_detectado: clienteTexto,\n      fecha: ''\n    },\n    sheetName,\n    cuenta,\n    esRemito: false,\n    esNDC: false,\n    esTransferencia: true,\n    esCheque: false,\n    esEcheq: false,\n    esPago: true\n  }\n}];"
+        "jsCode": "// Clasifica el texto: si es un comando 'PAGO X CLIENTE [cta N]' lo parseamos\n// directo acá y lo mandamos por el flujo de carga. Si no, va por el flujo\n// de respuesta a un Pendiente.\nconst configItem = $('Construir alias map').first().json;\nconst config = configItem.config;\nconst original = configItem.original;\nconst aliases = config.clientAliases;\n\nconst userText = original.data.message?.conversation\n  || original.data.message?.extendedTextMessage?.text\n  || '';\n\n// Sacar @mención al bot del principio si hay\nconst cleaned = userText.trim().replace(/^@\\S+\\s*/i, '').trim();\n\n// Match: PAGO <monto>[K|M] <cliente> [cta 1|2]\n// Ej: 'pago 500K farias', 'PAGO $500.000 ROCAS RAMIRO cta 1', 'pago 1.5m cinna'\nconst pagoMatch = cleaned.match(/^pago\\s+\\$?([\\d.,]+)\\s*([kKmM]?)\\s+(.+?)(?:\\s+cta\\s*([12]))?\\s*$/i);\n\nfunction normalize(s) {\n  return (s || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();\n}\n\nconst baseData = {\n  config,\n  groupJid: config.groupJid,\n  senderJid: original.data.key.participant || original.data.key.remoteJid,\n  messageId: original.data.key.id,\n  userText\n};\n\nif (!pagoMatch) {\n  return [{ json: { ...baseData, tipoMensaje: 'reply' } }];\n}\n\nconst numStr = pagoMatch[1].replace(/[.,]/g, '');\nlet monto = parseInt(numStr, 10);\nif (!monto) return [{ json: { ...baseData, tipoMensaje: 'reply' } }];\n\nconst mult = (pagoMatch[2] || '').toLowerCase();\nif (mult === 'k') monto *= 1000;\nif (mult === 'm') monto *= 1000000;\n\nconst clienteTexto = pagoMatch[3].trim();\nconst cuentaTexto = pagoMatch[4];\nconst cuenta = cuentaTexto ? parseInt(cuentaTexto, 10) : 1;\n\nlet sheetName = null;\nconst clienteNorm = normalize(clienteTexto);\nfor (const [alias, sheet] of Object.entries(aliases)) {\n  const aliasNorm = normalize(alias);\n  if (clienteNorm.includes(aliasNorm) || aliasNorm.includes(clienteNorm)) {\n    sheetName = sheet;\n    break;\n  }\n}\n\n// Quiso hacer un PAGO pero no reconocemos al cliente — avisamos en lugar de ignorar\nif (!sheetName) {\n  return [{\n    json: {\n      ...baseData,\n      tipoMensaje: 'pago_no_match',\n      clienteTexto,\n      monto\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    ...baseData,\n    tipoMensaje: 'pago_manual',\n    extracted: {\n      tipo: 'pago_efectivo',\n      monto,\n      numero_comprobante: '',\n      nota_corta: 'efectivo',\n      cliente_detectado: clienteTexto,\n      fecha: ''\n    },\n    sheetName,\n    cuenta,\n    esRemito: false,\n    esNDC: false,\n    esTransferencia: true,\n    esCheque: false,\n    esEcheq: false,\n    esPago: true\n  }\n}];"
       },
       "id": "classify-text",
       "name": "Clasificar texto",
@@ -824,7 +875,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Busca el último pendiente activo del grupo\nconst resp = $input.first().json;\nconst rows = resp.values || [];\nconst dataRows = rows.slice(1);\n\nconst configItem = $('Config').first().json;\nconst config = configItem.config;\nconst original = configItem.original;\nconst groupJid = config.groupJid;\n\nlet pendiente = null;\nlet pendienteRowIndex = -1;\nlet latestTs = 0;\n\nfor (let i = 0; i < dataRows.length; i++) {\n  const r = dataRows[i];\n  if (r[13] === 'pendiente' && r[15] === groupJid) {\n    const ts = new Date(r[1]).getTime();\n    if (ts > latestTs) {\n      latestTs = ts;\n      pendiente = {\n        id: r[0],\n        timestamp: r[1],\n        tipo: r[2],\n        cliente_detectado: r[3],\n        sheet_name: r[4],\n        cuenta: r[5] ? parseInt(r[5]) : null,\n        monto: r[6] ? parseFloat(r[6]) : null,\n        comprobante: r[7],\n        fecha: r[8],\n        nota: r[9],\n        banco: r[10],\n        dueno_cheque: r[11],\n        fecha_cobro: r[12],\n        status: r[13],\n        razon: r[14],\n        chat_jid: r[15]\n      };\n      pendienteRowIndex = i + 2;\n    }\n  }\n}\n\nconst userText = original.data.message?.conversation\n  || original.data.message?.extendedTextMessage?.text\n  || '';\n\nreturn [{\n  json: {\n    pendiente,\n    pendienteRowIndex,\n    userText,\n    config,\n    groupJid,\n    senderJid: original.data.key.participant || original.data.key.remoteJid\n  }\n}];"
+        "jsCode": "// Busca el último pendiente activo del grupo\nconst resp = $input.first().json;\nconst rows = resp.values || [];\nconst dataRows = rows.slice(1);\n\nconst configItem = $('Construir alias map').first().json;\nconst config = configItem.config;\nconst original = configItem.original;\nconst groupJid = config.groupJid;\n\nlet pendiente = null;\nlet pendienteRowIndex = -1;\nlet latestTs = 0;\n\nfor (let i = 0; i < dataRows.length; i++) {\n  const r = dataRows[i];\n  if (r[13] === 'pendiente' && r[15] === groupJid) {\n    const ts = new Date(r[1]).getTime();\n    if (ts > latestTs) {\n      latestTs = ts;\n      pendiente = {\n        id: r[0],\n        timestamp: r[1],\n        tipo: r[2],\n        cliente_detectado: r[3],\n        sheet_name: r[4],\n        cuenta: r[5] ? parseInt(r[5]) : null,\n        monto: r[6] ? parseFloat(r[6]) : null,\n        comprobante: r[7],\n        fecha: r[8],\n        nota: r[9],\n        banco: r[10],\n        dueno_cheque: r[11],\n        fecha_cobro: r[12],\n        status: r[13],\n        razon: r[14],\n        chat_jid: r[15]\n      };\n      pendienteRowIndex = i + 2;\n    }\n  }\n}\n\nconst userText = original.data.message?.conversation\n  || original.data.message?.extendedTextMessage?.text\n  || '';\n\nreturn [{\n  json: {\n    pendiente,\n    pendienteRowIndex,\n    userText,\n    config,\n    groupJid,\n    senderJid: original.data.key.participant || original.data.key.remoteJid\n  }\n}];"
       },
       "id": "find-pendiente",
       "name": "Buscar pendiente activo",
@@ -969,6 +1020,39 @@
       ]
     },
     "Config": {
+      "main": [
+        [
+          {
+            "node": "Listar pestañas del Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listar pestañas del Sheet": {
+      "main": [
+        [
+          {
+            "node": "Leer hoja Aliases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer hoja Aliases": {
+      "main": [
+        [
+          {
+            "node": "Construir alias map",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir alias map": {
       "main": [
         [
           {
