@@ -406,7 +406,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Arma los datos para escribir según tipo + cuenta\nconst d = $input.first().json;\nconst e = d.extracted;\n\nconst firstCol = d.cuenta === 1 ? 'H' : 'A';\nconst lastCol = d.cuenta === 1 ? 'L' : 'E';\n\nlet debe = '';\nlet haber = '';\nif (d.esNDC || d.esPago) {\n  haber = e.monto;\n} else {\n  debe = e.monto;\n}\n\nlet comprobante;\nif (d.esTransferencia) {\n  comprobante = 'PAGO';\n} else {\n  comprobante = e.numero_comprobante || '';\n}\n\nlet nota = e.nota_corta || '';\nif (d.esNDC) {\n  nota = nota ? `NDC ${nota}` : 'NDC';\n}\n\nreturn [{\n  json: {\n    ...d,\n    firstCol,\n    lastCol,\n    readRange: `${d.sheetName}!${firstCol}:${firstCol}`,\n    rowValues: [e.fecha || '', comprobante, nota, debe, haber]\n  }\n}];"
+        "jsCode": "// Arma los datos para escribir según tipo + cuenta\nconst d = $input.first().json;\nconst e = d.extracted;\n\nconst firstCol = d.cuenta === 1 ? 'H' : 'A';\nconst lastCol = d.cuenta === 1 ? 'L' : 'E';\n\nlet debe = '';\nlet haber = '';\nif (d.esNDC || d.esPago) {\n  haber = e.monto;\n} else {\n  debe = e.monto;\n}\n\nlet comprobante;\nif (d.esTransferencia) {\n  comprobante = 'PAGO';\n} else {\n  comprobante = e.numero_comprobante || '';\n}\n\nlet nota = e.nota_corta || '';\nif (d.esNDC) {\n  nota = nota ? `NDC ${nota}` : 'NDC';\n}\n\n// Fecha de carga: SIEMPRE hoy en horario argentino, formato DD/M sin ceros\nconst fmt = new Intl.DateTimeFormat('en-US', {\n  timeZone: 'America/Argentina/Buenos_Aires',\n  day: 'numeric',\n  month: 'numeric'\n});\nconst parts = fmt.formatToParts(new Date());\nconst dia = parts.find(p => p.type === 'day').value;\nconst mes = parts.find(p => p.type === 'month').value;\nconst fechaHoy = `${dia}/${mes}`;\n\nreturn [{\n  json: {\n    ...d,\n    firstCol,\n    lastCol,\n    readRange: `${d.sheetName}!${firstCol}:${firstCol}`,\n    rowValues: [fechaHoy, comprobante, nota, debe, haber]\n  }\n}];"
       },
       "id": "prep-row",
       "name": "Preparar fila",
@@ -539,7 +539,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $('Preparar fila').first().json.groupJid }}\",\n  \"text\": \"REMITO ACTUALIZADO\\nCliente: {{ $('Preparar fila').first().json.sheetName }}\\nCuenta: {{ $('Preparar fila').first().json.cuenta }}\\nComprobante: {{ $('Preparar fila').first().json.extracted.numero_comprobante || 'PAGO' }}\\nMonto: ${{ $('Preparar fila').first().json.extracted.monto }}\"\n}",
+        "jsonBody": "={\n  \"number\": \"{{ $('Preparar fila').first().json.groupJid }}\",\n  \"text\": \"{{ $('Preparar fila').first().json.esPago ? 'PAGO REGISTRADO' : 'REMITO ACTUALIZADO' }}\\nCliente: {{ $('Preparar fila').first().json.sheetName }}\\nCuenta: {{ $('Preparar fila').first().json.cuenta }}\\nComprobante: {{ $('Preparar fila').first().json.extracted.numero_comprobante || 'PAGO' }}\\nMonto: ${{ $('Preparar fila').first().json.extracted.monto }}\"\n}",
         "options": {}
       },
       "id": "wa-confirm",
@@ -683,6 +683,78 @@
           "name": "Evolution API"
         }
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Clasifica el texto: si es un comando 'PAGO X CLIENTE [cta N]' lo parseamos\n// directo acá y lo mandamos por el flujo de carga. Si no, va por el flujo\n// de respuesta a un Pendiente.\nconst configItem = $('Config').first().json;\nconst config = configItem.config;\nconst original = configItem.original;\nconst aliases = config.clientAliases;\n\nconst userText = original.data.message?.conversation\n  || original.data.message?.extendedTextMessage?.text\n  || '';\n\n// Sacar @mención al bot del principio si hay\nconst cleaned = userText.trim().replace(/^@\\S+\\s*/i, '').trim();\n\n// Match: PAGO <monto>[K|M] <cliente> [cta 1|2]\n// Ej: 'pago 500K farias', 'PAGO $500.000 ROCAS RAMIRO cta 1', 'pago 1.5m cinna'\nconst pagoMatch = cleaned.match(/^pago\\s+\\$?([\\d.,]+)\\s*([kKmM]?)\\s+(.+?)(?:\\s+cta\\s*([12]))?\\s*$/i);\n\nfunction normalize(s) {\n  return (s || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();\n}\n\nconst baseData = {\n  config,\n  groupJid: config.groupJid,\n  senderJid: original.data.key.participant || original.data.key.remoteJid,\n  messageId: original.data.key.id,\n  userText\n};\n\nif (!pagoMatch) {\n  return [{ json: { ...baseData, tipoMensaje: 'reply' } }];\n}\n\nconst numStr = pagoMatch[1].replace(/[.,]/g, '');\nlet monto = parseInt(numStr, 10);\nif (!monto) return [{ json: { ...baseData, tipoMensaje: 'reply' } }];\n\nconst mult = (pagoMatch[2] || '').toLowerCase();\nif (mult === 'k') monto *= 1000;\nif (mult === 'm') monto *= 1000000;\n\nconst clienteTexto = pagoMatch[3].trim();\nconst cuentaTexto = pagoMatch[4];\nconst cuenta = cuentaTexto ? parseInt(cuentaTexto, 10) : 1;\n\nlet sheetName = null;\nconst clienteNorm = normalize(clienteTexto);\nfor (const [alias, sheet] of Object.entries(aliases)) {\n  const aliasNorm = normalize(alias);\n  if (clienteNorm.includes(aliasNorm) || aliasNorm.includes(clienteNorm)) {\n    sheetName = sheet;\n    break;\n  }\n}\n\n// Si no reconocemos al cliente, no es pago manual válido — lo tratamos como reply\nif (!sheetName) {\n  return [{ json: { ...baseData, tipoMensaje: 'reply' } }];\n}\n\nreturn [{\n  json: {\n    ...baseData,\n    tipoMensaje: 'pago_manual',\n    extracted: {\n      tipo: 'pago_efectivo',\n      monto,\n      numero_comprobante: '',\n      nota_corta: 'efectivo',\n      cliente_detectado: clienteTexto,\n      fecha: ''\n    },\n    sheetName,\n    cuenta,\n    esRemito: false,\n    esNDC: false,\n    esTransferencia: true,\n    esCheque: false,\n    esEcheq: false,\n    esPago: true\n  }\n}];"
+      },
+      "id": "classify-text",
+      "name": "Clasificar texto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 700]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "r-pago-manual",
+                    "leftValue": "={{ $json.tipoMensaje }}",
+                    "rightValue": "pago_manual",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Pago manual"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "r-reply",
+                    "leftValue": "={{ $json.tipoMensaje }}",
+                    "rightValue": "reply",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Reply a pendiente"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "id": "switch-text-type",
+      "name": "Switch tipo mensaje",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1720, 700]
     },
     {
       "parameters": {
@@ -1132,12 +1204,41 @@
       "main": [
         [
           {
-            "node": "Leer Pendientes (texto)",
+            "node": "Clasificar texto",
             "type": "main",
             "index": 0
           }
         ],
         []
+      ]
+    },
+    "Clasificar texto": {
+      "main": [
+        [
+          {
+            "node": "Switch tipo mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch tipo mensaje": {
+      "main": [
+        [
+          {
+            "node": "Preparar fila",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Leer Pendientes (texto)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Leer Pendientes (texto)": {
