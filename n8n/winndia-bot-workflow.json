@@ -498,12 +498,12 @@
     {
       "parameters": {
         "method": "PUT",
-        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}/values/{{ encodeURIComponent($json.writeRange) }}?valueInputOption=USER_ENTERED",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $('Calcular fila destino').item.json.config.spreadsheetId }}/values/{{ encodeURIComponent($('Calcular fila destino').item.json.writeRange) }}?valueInputOption=USER_ENTERED",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"values\": [{{ JSON.stringify($json.rowValues) }}]\n}",
+        "jsonBody": "={\n  \"values\": [{{ JSON.stringify($('Calcular fila destino').item.json.rowValues) }}]\n}",
         "options": {}
       },
       "id": "sheets-write",
@@ -626,7 +626,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Cuando viene multi-cheque, después de IF marcar pendiente teníamos N\n// items en el flujo (uno por cheque). Acá los colapsamos en uno solo con\n// totales calculados, para que Borrar pendiente y WhatsApp confirmar\n// corran una sola vez con el resumen.\nconst items = $input.all();\nif (items.length === 0) return [];\nif (items.length === 1) return items;\n\nconst first = items[0].json;\nconst totalMonto = items.reduce((s, i) => s + (parseFloat(i.json.extracted && i.json.extracted.monto) || 0), 0);\nconst count = items.length;\n\nreturn [{\n  json: {\n    ...first,\n    extracted: {\n      ...first.extracted,\n      monto: totalMonto\n    },\n    chequesCount: count,\n    esMultipagoAgregado: true\n  }\n}];"
+        "jsCode": "// Colapsa N items (multi-cheque) en uno solo con los totales.\n// Tomamos los datos originales de 'Calcular fila destino' porque $input\n// acá ya viene con la respuesta del Sheets API (Sheets-write replazó $json).\nconst items = $input.all();\nif (items.length === 0) return [];\n\nconst calcAll = $('Calcular fila destino').all();\nif (calcAll.length === 0) return items;\n\nconst first = calcAll[0].json;\nconst count = items.length;\n\nif (count === 1) {\n  return [{ json: first, pairedItem: { item: 0 } }];\n}\n\nconst totalMonto = calcAll.reduce((s, item) => s + (parseFloat(item.json.extracted && item.json.extracted.monto) || 0), 0);\n\nreturn [{\n  json: {\n    ...first,\n    extracted: {\n      ...first.extracted,\n      monto: totalMonto\n    },\n    chequesCount: count,\n    esMultipagoAgregado: true\n  }\n}];"
       },
       "id": "aggregate-cargas",
       "name": "Agrupar cargas",
