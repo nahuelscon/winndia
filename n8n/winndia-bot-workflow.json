@@ -487,7 +487,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Encuentra la última fila con valor real en la columna FECHA y devuelve\n// la fila destino (siguiente). Esto evita el problema del append de\n// Sheets que toma como 'llenas' celdas con formato o fórmulas que\n// devuelven string vacío.\nconst resp = $input.first().json;\nconst rows = resp.values || [];\n\nlet lastDataRow = 0;\nfor (let i = 0; i < rows.length; i++) {\n  const cell = rows[i] && rows[i][0];\n  if (cell !== null && cell !== undefined && String(cell).trim() !== '') {\n    lastDataRow = i + 1;\n  }\n}\n\nconst targetRow = lastDataRow + 1;\nconst prep = $('Preparar fila').first().json;\n\nreturn [{\n  json: {\n    ...prep,\n    targetRow,\n    writeRange: `${prep.sheetName}!${prep.firstCol}${targetRow}:${prep.lastCol}${targetRow}`\n  }\n}];"
+        "jsCode": "// Encuentra la última fila con valor real en la columna FECHA. Si vienen\n// N items (multi-cheque expandido), todos leyeron la misma columna del mismo\n// sheet, asi que tomamos un solo response y le asignamos a cada item su\n// propia targetRow incremental (lastDataRow+1, +2, ..., +N). Sino dos\n// cheques sobrescribirían la misma fila.\nconst inputItems = $input.all();\nconst prepItems = $('Preparar fila').all();\n\nif (inputItems.length === 0 || prepItems.length === 0) return [];\n\nconst resp = inputItems[0].json;\nconst rows = resp.values || [];\n\nlet lastDataRow = 0;\nfor (let j = 0; j < rows.length; j++) {\n  const cell = rows[j] && rows[j][0];\n  if (cell !== null && cell !== undefined && String(cell).trim() !== '') {\n    lastDataRow = j + 1;\n  }\n}\n\nreturn prepItems.map((prepItem, i) => {\n  const prep = prepItem.json;\n  const targetRow = lastDataRow + 1 + i;\n  return {\n    json: {\n      ...prep,\n      targetRow,\n      writeRange: `${prep.sheetName}!${prep.firstCol}${targetRow}:${prep.lastCol}${targetRow}`\n    },\n    pairedItem: { item: i }\n  };\n});"
       },
       "id": "calc-target-row",
       "name": "Calcular fila destino",
@@ -609,7 +609,8 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"values\": [{{ JSON.stringify($json.chequesRowValues) }}]\n}",
-        "options": {}
+        "options": {},
+        "notes": "Corre ANTES de Google Sheets - Escribir fila para que $json todavía tenga config.spreadsheetId y chequesRowValues sin pisar por la respuesta del Sheets API."
       },
       "id": "write-cheques",
       "name": "Escribir en CHEQUES",
@@ -1347,17 +1348,6 @@
       "main": [
         [
           {
-            "node": "Google Sheets - Escribir fila",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Google Sheets - Escribir fila": {
-      "main": [
-        [
-          {
             "node": "IF es cheque o echeq",
             "type": "main",
             "index": 0
@@ -1376,7 +1366,7 @@
         ],
         [
           {
-            "node": "Agrupar cargas",
+            "node": "Google Sheets - Escribir fila",
             "type": "main",
             "index": 0
           }
@@ -1384,6 +1374,17 @@
       ]
     },
     "Escribir en CHEQUES": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Escribir fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Escribir fila": {
       "main": [
         [
           {
