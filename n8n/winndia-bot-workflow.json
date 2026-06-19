@@ -367,13 +367,49 @@
       "name": "WhatsApp preguntar pago",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2380, 400],
+      "position": [2600, 400],
       "credentials": {
         "httpHeaderAuth": {
           "id": "evolution-api-creds",
           "name": "Evolution API"
         }
       }
+    },
+    {
+      "parameters": {
+        "amount": 8,
+        "unit": "seconds"
+      },
+      "id": "wait-confirm",
+      "name": "Esperar 8s (anti-ban)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2700, 0],
+      "webhookId": "wait-confirm-wh"
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "wait-ask",
+      "name": "Esperar 10s (anti-ban)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2380, 250],
+      "webhookId": "wait-ask-wh"
+    },
+    {
+      "parameters": {
+        "amount": 45,
+        "unit": "seconds"
+      },
+      "id": "wait-ask-pay",
+      "name": "Esperar 45s (espacio para contexto)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2380, 450],
+      "webhookId": "wait-ask-pay-wh"
     },
     {
       "parameters": {
@@ -485,14 +521,14 @@
         ],
         [
           {
-            "node": "WhatsApp preguntar",
+            "node": "Esperar 10s (anti-ban)",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "WhatsApp preguntar pago",
+            "node": "Esperar 45s (espacio para contexto)",
             "type": "main",
             "index": 0
           }
@@ -514,7 +550,40 @@
       "main": [
         [
           {
+            "node": "Esperar 8s (anti-ban)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar 8s (anti-ban)": {
+      "main": [
+        [
+          {
             "node": "WhatsApp confirmar carga",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar 10s (anti-ban)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp preguntar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar 45s (espacio para contexto)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp preguntar pago",
             "type": "main",
             "index": 0
           }
