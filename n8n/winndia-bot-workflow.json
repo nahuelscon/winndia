@@ -52,7 +52,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}?fields=sheets.properties.title",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.config.spreadsheetId }}?fields=sheets(properties(title,sheetId))",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleApi",
         "options": {}
@@ -92,7 +92,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Construye el alias map final mergeando:\n// 1. clientAliases hardcodeados en Config (variantes / sinónimos)\n// 2. Cada pestaña del Sheet como self-alias (lowercase -> nombre exacto)\n// 3. Hoja 'Aliases' del Sheet (toma precedencia)\nconst cfgInput = $('Config').first().json;\nconst config = cfgInput.config;\nconst original = cfgInput.original;\n\nconst tabsResp = $('Listar pestañas del Sheet').first().json;\nconst aliasResp = $input.first().json;\n\nconst merged = { ...config.clientAliases };\n\nconst excluded = new Set(config.excludedTabs || []);\nconst tabs = (tabsResp && tabsResp.sheets) || [];\nfor (const t of tabs) {\n  const title = t.properties && t.properties.title;\n  if (!title) continue;\n  if (excluded.has(title)) continue;\n  merged[title.toLowerCase()] = title;\n}\n\nconst aliasRows = (aliasResp && Array.isArray(aliasResp.values)) ? aliasResp.values.slice(1) : [];\nfor (const row of aliasRows) {\n  if (!Array.isArray(row)) continue;\n  const alias = (row[0] || '').trim().toLowerCase();\n  const sheetName = (row[1] || '').trim();\n  if (alias && sheetName) merged[alias] = sheetName;\n}\n\nreturn [{\n  json: {\n    config: { ...config, clientAliases: merged },\n    original\n  }\n}];"
+        "jsCode": "// Construye el alias map final mergeando:\n// 1. clientAliases hardcodeados en Config (variantes / sinónimos)\n// 2. Cada pestaña del Sheet como self-alias (lowercase -> nombre exacto)\n// 3. Hoja 'Aliases' del Sheet (toma precedencia)\n// También guarda tabIds: { 'Pendientes': numericId, ... } necesario para\n// borrar filas via batchUpdate (deleteDimension necesita sheetId numérico).\nconst cfgInput = $('Config').first().json;\nconst config = cfgInput.config;\nconst original = cfgInput.original;\n\nconst tabsResp = $('Listar pestañas del Sheet').first().json;\nconst aliasResp = $input.first().json;\n\nconst merged = { ...config.clientAliases };\nconst tabIds = {};\n\nconst excluded = new Set(config.excludedTabs || []);\nconst tabs = (tabsResp && tabsResp.sheets) || [];\nfor (const t of tabs) {\n  const title = t.properties && t.properties.title;\n  const sheetId = t.properties && t.properties.sheetId;\n  if (!title) continue;\n  if (sheetId !== undefined && sheetId !== null) tabIds[title] = sheetId;\n  if (excluded.has(title)) continue;\n  merged[title.toLowerCase()] = title;\n}\n\nconst aliasRows = (aliasResp && Array.isArray(aliasResp.values)) ? aliasResp.values.slice(1) : [];\nfor (const row of aliasRows) {\n  if (!Array.isArray(row)) continue;\n  const alias = (row[0] || '').trim().toLowerCase();\n  const sheetName = (row[1] || '').trim();\n  if (alias && sheetName) merged[alias] = sheetName;\n}\n\nreturn [{\n  json: {\n    config: { ...config, clientAliases: merged, tabIds },\n    original\n  }\n}];"
       },
       "id": "build-alias-map",
       "name": "Construir alias map",
@@ -457,7 +457,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Arma los datos para escribir según tipo + cuenta\nconst d = $input.first().json;\nconst e = d.extracted;\n\nconst firstCol = d.cuenta === 1 ? 'H' : 'A';\nconst lastCol = d.cuenta === 1 ? 'L' : 'E';\n\nlet debe = '';\nlet haber = '';\nif (d.esNDC || d.esPago) {\n  haber = e.monto;\n} else {\n  debe = e.monto;\n}\n\nlet comprobante;\nif (d.esTransferencia) {\n  comprobante = 'PAGO';\n} else {\n  comprobante = e.numero_comprobante || '';\n}\n\nlet nota = e.nota_corta || '';\nif (d.esNDC) {\n  nota = nota ? `NDC ${nota}` : 'NDC';\n}\n\n// Fecha de carga: SIEMPRE hoy en horario argentino, formato DD/M sin ceros\nconst fmt = new Intl.DateTimeFormat('en-US', {\n  timeZone: 'America/Argentina/Buenos_Aires',\n  day: 'numeric',\n  month: 'numeric'\n});\nconst parts = fmt.formatToParts(new Date());\nconst dia = parts.find(p => p.type === 'day').value;\nconst mes = parts.find(p => p.type === 'month').value;\nconst fechaHoy = `${dia}/${mes}`;\n\nreturn [{\n  json: {\n    ...d,\n    firstCol,\n    lastCol,\n    readRange: `${d.sheetName}!${firstCol}:${firstCol}`,\n    rowValues: [fechaHoy, comprobante, nota, debe, haber]\n  }\n}];"
+        "jsCode": "// Arma los datos para escribir según tipo + cuenta\nconst d = $input.first().json;\nconst e = d.extracted;\n\nconst firstCol = d.cuenta === 1 ? 'H' : 'A';\nconst lastCol = d.cuenta === 1 ? 'L' : 'E';\n\nlet debe = '';\nlet haber = '';\nif (d.esNDC || d.esPago) {\n  haber = e.monto;\n} else {\n  debe = e.monto;\n}\n\nlet comprobante;\nif (d.esTransferencia) {\n  comprobante = 'PAGO';\n} else {\n  comprobante = e.numero_comprobante || '';\n}\n\nlet nota = e.nota_corta || '';\nif (d.esNDC) {\n  nota = nota ? `NDC ${nota}` : 'NDC';\n}\nif (d.esCheque) {\n  nota = nota ? `CH ${nota}` : 'CH';\n}\nif (d.esEcheq) {\n  nota = nota ? `ECHEQ ${nota}` : 'ECHEQ';\n}\n\n// Fecha de carga: SIEMPRE hoy en horario argentino, formato DD/M sin ceros\nconst fmt = new Intl.DateTimeFormat('en-US', {\n  timeZone: 'America/Argentina/Buenos_Aires',\n  day: 'numeric',\n  month: 'numeric'\n});\nconst parts = fmt.formatToParts(new Date());\nconst dia = parts.find(p => p.type === 'day').value;\nconst mes = parts.find(p => p.type === 'month').value;\nconst fechaHoy = `${dia}/${mes}`;\n\n// Para cheques/echeqs también vamos a escribir en la hoja CHEQUES\nlet chequesRowValues = null;\nif (d.esCheque || d.esEcheq) {\n  const tipoCh = d.esCheque ? 'CH' : 'ECHEQ';\n  chequesRowValues = [\n    fechaHoy,                       // A: FECHA\n    d.sheetName || '',              // B: CLIENTE\n    e.dueno_cheque || '',           // C: DUEÑO\n    e.numero_comprobante || '',     // D: NRO\n    e.monto || '',                  // E: MONTO\n    e.fecha_cobro || '',            // F: FECHA COBRO\n    tipoCh,                         // G: TIPO (CH / ECHEQ)\n    'PAGO'                          // H: ESTADO (PAGO = aún no cobrado)\n  ];\n}\n\nreturn [{\n  json: {\n    ...d,\n    firstCol,\n    lastCol,\n    readRange: `${d.sheetName}!${firstCol}:${firstCol}`,\n    rowValues: [fechaHoy, comprobante, nota, debe, haber],\n    chequesRowValues\n  }\n}];"
       },
       "id": "prep-row",
       "name": "Preparar fila",
@@ -549,20 +549,73 @@
     },
     {
       "parameters": {
-        "method": "PUT",
-        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $('Preparar fila').first().json.config.spreadsheetId }}/values/Pendientes!N{{ $('Preparar fila').first().json.pendienteRowIndex }}:N{{ $('Preparar fila').first().json.pendienteRowIndex }}?valueInputOption=USER_ENTERED",
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $('Preparar fila').first().json.config.spreadsheetId }}:batchUpdate",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"values\": [[\"cargado\"]]\n}",
+        "jsonBody": "={\n  \"requests\": [{\n    \"deleteDimension\": {\n      \"range\": {\n        \"sheetId\": {{ $('Preparar fila').first().json.config.tabIds.Pendientes }},\n        \"dimension\": \"ROWS\",\n        \"startIndex\": {{ $('Preparar fila').first().json.pendienteRowIndex - 1 }},\n        \"endIndex\": {{ $('Preparar fila').first().json.pendienteRowIndex }}\n      }\n    }\n  }]\n}",
         "options": {}
       },
       "id": "mark-cargado",
-      "name": "Marcar pendiente cargado",
+      "name": "Borrar pendiente resuelto",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [3040, -100],
+      "credentials": {
+        "googleApi": {
+          "id": "winndia-sa-creds",
+          "name": "SHEET WINNDIA (SA)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-is-cheque",
+              "leftValue": "={{ $('Preparar fila').first().json.chequesRowValues }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-cheque-tab",
+      "name": "IF es cheque o echeq",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2820, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $('Preparar fila').first().json.config.spreadsheetId }}/values/CHEQUES!A:H:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"values\": [{{ JSON.stringify($('Preparar fila').first().json.chequesRowValues) }}]\n}",
+        "options": {}
+      },
+      "id": "write-cheques",
+      "name": "Escribir en CHEQUES",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3040, 100],
       "credentials": {
         "googleApi": {
           "id": "winndia-sa-creds",
@@ -1283,6 +1336,35 @@
       "main": [
         [
           {
+            "node": "IF es cheque o echeq",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF es cheque o echeq": {
+      "main": [
+        [
+          {
+            "node": "Escribir en CHEQUES",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF marcar pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escribir en CHEQUES": {
+      "main": [
+        [
+          {
             "node": "IF marcar pendiente",
             "type": "main",
             "index": 0
@@ -1294,7 +1376,7 @@
       "main": [
         [
           {
-            "node": "Marcar pendiente cargado",
+            "node": "Borrar pendiente resuelto",
             "type": "main",
             "index": 0
           }
@@ -1308,7 +1390,7 @@
         ]
       ]
     },
-    "Marcar pendiente cargado": {
+    "Borrar pendiente resuelto": {
       "main": [
         [
           {
